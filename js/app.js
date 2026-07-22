@@ -18,6 +18,29 @@ let currentGameDoc = null;
 
 const el = (id) => document.getElementById(id);
 
+// Firestoreはネストした配列(2次元配列)を保存できないため、board を保存用にフラット化する。
+function serializeState(state) {
+  const flatBoard = [];
+  for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
+    for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
+      flatBoard.push(state.board[r][c]);
+    }
+  }
+  return { ...state, board: flatBoard };
+}
+
+function deserializeState(stored) {
+  const board = [];
+  for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
+      row.push(stored.board[r * GameLogic.BOARD_COLS + c] || null);
+    }
+    board.push(row);
+  }
+  return { ...stored, board };
+}
+
 function initFirebase() {
   try {
     app = firebase.initializeApp(firebaseConfig);
@@ -67,7 +90,7 @@ async function createRoom() {
   const state = GameLogic.createInitialState();
   try {
     await db.collection('games').doc(code).set({
-      state,
+      state: serializeState(state),
       players: { sente: uid, gote: null },
       status: 'waiting',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -120,6 +143,7 @@ function enterRoom(code) {
   unsubscribeRoom = db.collection('games').doc(code).onSnapshot((doc) => {
     if (!doc.exists) return;
     currentGameDoc = doc.data();
+    currentGameDoc.state = deserializeState(currentGameDoc.state);
     determineRole();
     selected = null;
     render();
@@ -152,7 +176,7 @@ function leaveRoom() {
 
 async function pushState(newState) {
   try {
-    await db.collection('games').doc(roomCode).update({ state: newState });
+    await db.collection('games').doc(roomCode).update({ state: serializeState(newState) });
   } catch (e) {
     console.error(e);
     alert('通信エラーが発生しました: ' + e.message);
