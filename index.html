@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>どうぶつしょうぎ オンライン対戦</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>🐘 どうぶつしょうぎ オンライン対戦 🦁</h1>
+  </header>
+
+  <main>
+    <!-- ロビー画面 -->
+    <section id="lobby-screen" class="screen">
+      <div id="connection-status" class="status-msg">Firebaseに接続中...</div>
+
+      <div class="lobby-card">
+        <h2>部屋を作る</h2>
+        <button id="create-room-btn" disabled>新しい部屋を作成</button>
+      </div>
+
+      <div class="lobby-card">
+        <h2>部屋に入る</h2>
+        <input id="room-code-input" maxlength="6" placeholder="部屋コード(6文字)" autocomplete="off" />
+        <button id="join-room-btn" disabled>参加する</button>
+      </div>
+
+      <p id="lobby-error" class="error-msg"></p>
+    </section>
+
+    <!-- 対戦画面 -->
+    <section id="game-screen" class="screen hidden">
+      <div class="game-header">
+        <div>部屋コード: <span id="room-code-display"></span>
+          <button id="copy-link-btn" title="招待リンクをコピー">🔗リンクをコピー</button>
+        </div>
+        <div id="player-role"></div>
+        <button id="leave-room-btn">部屋を出る</button>
+      </div>
+
+      <div id="waiting-msg" class="status-msg hidden">対戦相手を待っています。部屋コードまたはリンクを相手に共有してください。</div>
+
+      <div id="turn-indicator" class="status-msg"></div>
+      <div id="result-msg" class="result-msg hidden"></div>
+
+      <div class="game-area">
+        <div class="hand" id="hand-gote">
+          <h3>後手 持ち駒</h3>
+          <div class="hand-pieces" id="hand-gote-pieces"></div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <div class="hand" id="hand-sente">
+          <h3>先手 持ち駒</h3>
+          <div class="hand-pieces" id="hand-sente-pieces"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>ルール: ライオンを取るか、相手陣最奥列にライオンが到達すると勝ち(トライルール簡易版)。</p>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/game-logic.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

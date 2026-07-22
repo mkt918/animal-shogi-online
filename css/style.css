@@ -1,0 +1,253 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  background: linear-gradient(135deg, #fdf6e3, #f0e6c8);
+  color: #3a2c1a;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  text-align: center;
+  padding: 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+}
+
+.screen.hidden {
+  display: none;
+}
+
+.status-msg {
+  text-align: center;
+  margin: 0.5rem 0;
+  padding: 0.5rem 1rem;
+  background: #fff8e1;
+  border-radius: 8px;
+}
+
+.error-msg {
+  color: #b00020;
+  min-height: 1.2em;
+  text-align: center;
+}
+
+.result-msg {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: bold;
+  padding: 0.8rem;
+  background: #ffe082;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.result-msg.hidden,
+.hidden {
+  display: none;
+}
+
+.lobby-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.lobby-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.lobby-card input {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 1.1rem;
+  text-align: center;
+  text-transform: uppercase;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 0.6rem;
+}
+
+button {
+  cursor: pointer;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #6d4c41;
+  color: white;
+  transition: background 0.2s;
+}
+
+button:hover:not(:disabled) {
+  background: #5d4037;
+}
+
+button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.game-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+#room-code-display {
+  font-weight: bold;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+}
+
+.game-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 90px);
+  grid-template-rows: repeat(4, 90px);
+  gap: 3px;
+  background: #8d6e63;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.cell {
+  background: #f5deb3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  border-radius: 4px;
+  cursor: default;
+  user-select: none;
+  position: relative;
+}
+
+.cell.selectable {
+  cursor: pointer;
+}
+
+.cell.selected {
+  outline: 3px solid #d32f2f;
+  outline-offset: -3px;
+}
+
+.cell.destination::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(46, 125, 50, 0.6);
+}
+
+.piece {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 78px;
+  height: 78px;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  line-height: 1.1;
+  border: 2px solid #4e342e;
+}
+
+.piece.owner-sente {
+  background: #ffecb3;
+  color: #3a2c1a;
+}
+
+.piece.owner-gote {
+  background: #cfd8dc;
+  color: #263238;
+  transform: rotate(180deg);
+}
+
+.piece .emoji {
+  font-size: 1.4rem;
+}
+
+.hand {
+  background: white;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  min-width: 280px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.hand h3 {
+  margin: 0.3rem 0;
+  font-size: 0.95rem;
+}
+
+.hand-pieces {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  min-height: 50px;
+}
+
+.hand-piece {
+  width: 46px;
+  height: 46px;
+  border: 2px solid #4e342e;
+  border-radius: 6px;
+  background: #ffecb3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.hand-piece.selected {
+  outline: 3px solid #d32f2f;
+}
+
+.hand-piece.disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+footer {
+  text-align: center;
+  padding: 0.8rem;
+  font-size: 0.8rem;
+  color: #6d4c41;
+}
