@@ -146,6 +146,31 @@ button:disabled {
   letter-spacing: 0.1em;
 }
 
+#player-role {
+  font-weight: bold;
+  font-size: 1.1rem;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+}
+
+#player-role.role-sente {
+  background: #ffecb3;
+  border-color: #4e342e;
+  color: #3a2c1a;
+}
+
+#player-role.role-gote {
+  background: #cfd8dc;
+  border-color: #4e342e;
+  color: #263238;
+}
+
+#player-role.role-spectator {
+  background: #eee;
+  color: #666;
+}
+
 .game-area {
   display: flex;
   flex-direction: column;
@@ -191,6 +216,20 @@ button:disabled {
   height: 18px;
   border-radius: 50%;
   background: rgba(46, 125, 50, 0.6);
+  z-index: 2;
+}
+
+.cell.reachable-preview::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(46, 125, 50, 0.85);
+  border: 1px solid white;
+  z-index: 3;
 }
 
 .piece {

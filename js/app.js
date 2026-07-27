@@ -78,10 +78,7 @@ function checkUrlForRoom() {
 }
 
 function generateRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
 }
 
 async function createRoom() {
@@ -187,7 +184,18 @@ function render() {
   if (!currentGameDoc) return;
   const { state, players, status } = currentGameDoc;
 
-  el('player-role').textContent = myRole === 'sente' ? 'あなたは先手' : myRole === 'gote' ? 'あなたは後手' : '観戦中';
+  const roleEl = el('player-role');
+  roleEl.classList.remove('role-sente', 'role-gote', 'role-spectator');
+  if (myRole === 'sente') {
+    roleEl.innerHTML = '🟡 あなたは<strong>先手</strong>';
+    roleEl.classList.add('role-sente');
+  } else if (myRole === 'gote') {
+    roleEl.innerHTML = '⚪ あなたは<strong>後手</strong>';
+    roleEl.classList.add('role-gote');
+  } else {
+    roleEl.textContent = '観戦中';
+    roleEl.classList.add('role-spectator');
+  }
   el('waiting-msg').classList.toggle('hidden', status !== 'waiting');
 
   if (state.winner) {
@@ -213,6 +221,20 @@ function renderBoard(state) {
   boardEl.innerHTML = '';
 
   const legalDests = getLegalDestinationsForSelection(state);
+  const myTurnActive = !state.winner && myRole === state.turn;
+
+  // 選択していない間も、自分の駒それぞれが動ける先を薄いドットで常時表示する
+  const ownReachable = [];
+  if (myTurnActive && !selected) {
+    for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
+      for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
+        const p = state.board[r][c];
+        if (p && p.owner === myRole) {
+          ownReachable.push(...GameLogic.getPieceDestinations(state, r, c));
+        }
+      }
+    }
+  }
 
   for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
     for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
@@ -234,6 +256,9 @@ function renderBoard(state) {
       }
       if (legalDests.some((d) => d.row === r && d.col === c)) {
         cell.classList.add('destination');
+      }
+      if (ownReachable.some((d) => d.row === r && d.col === c)) {
+        cell.classList.add('reachable-preview');
       }
 
       cell.addEventListener('click', () => onCellClick(r, c));
@@ -257,6 +282,8 @@ function renderHand(owner, state) {
     }
     if (canInteract) {
       pieceEl.addEventListener('click', () => onHandPieceClick(owner, idx, pieceType));
+      pieceEl.addEventListener('mouseenter', () => onHandPieceMouseEnter(state));
+      pieceEl.addEventListener('mouseleave', onHandPieceMouseLeave);
     }
     container.appendChild(pieceEl);
   });
@@ -304,6 +331,20 @@ function onCellClick(row, col) {
     selected = { kind: 'board', row, col };
   }
   render();
+}
+
+function onHandPieceMouseEnter(state) {
+  if (!currentGameDoc || selected) return;
+  const dests = GameLogic.getDropDestinations(state);
+  dests.forEach((d) => {
+    const cellEl = document.querySelector(`.cell[data-row="${d.row}"][data-col="${d.col}"]`);
+    if (cellEl) cellEl.classList.add('reachable-preview');
+  });
+}
+
+function onHandPieceMouseLeave() {
+  document.querySelectorAll('.cell.reachable-preview').forEach((c) => c.classList.remove('reachable-preview'));
+  if (currentGameDoc && !selected) renderBoard(currentGameDoc.state);
 }
 
 function onHandPieceClick(owner, index, pieceType) {

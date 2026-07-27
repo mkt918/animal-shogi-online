@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>どうぶつしょうぎ オンライン対戦</title>
-<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/style.css?v=2" />
 </head>
 <body>
   <header>
@@ -27,7 +27,7 @@
 
       <div class="lobby-card">
         <h2>部屋に入る</h2>
-        <input id="room-code-input" maxlength="6" placeholder="部屋コード(6文字)" autocomplete="off" />
+        <input id="room-code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="部屋コード(4桁)" autocomplete="off" />
         <button id="join-room-btn" disabled>参加する</button>
       </div>
 
@@ -72,8 +72,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=2"></script>
-  <script src="js/game-logic.js?v=2"></script>
-  <script src="js/app.js?v=2"></script>
+  <script src="js/firebase-config.js?v=3"></script>
+  <script src="js/game-logic.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>
