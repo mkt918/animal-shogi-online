@@ -4,31 +4,46 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>どうぶつしょうぎ オンライン対戦</title>
-<link rel="stylesheet" href="css/style.css?v=2" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/style.css?v=3" />
 </head>
 <body>
-  <header>
-    <h1>🐘 どうぶつしょうぎ オンライン対戦 🦁</h1>
-    <div class="qr-block">
-      <img src="assets/qr-code.png" alt="このサイトへのQRコード" width="140" height="140" />
-      <p>スマホでスキャンしてアクセス</p>
+  <header class="masthead">
+    <div class="wordmark">
+      <span class="character-mark" aria-hidden="true">🦁</span>
+      <div>
+        <h1>どうぶつしょうぎ</h1>
+        <p class="wordmark-sub">オンライン対戦</p>
+      </div>
     </div>
+    <figure class="qr-block">
+      <img src="assets/qr-code.png" alt="このサイトへのQRコード" width="104" height="104" />
+      <figcaption>スマホでスキャン</figcaption>
+    </figure>
   </header>
 
   <main>
     <!-- ロビー画面 -->
     <section id="lobby-screen" class="screen">
-      <div id="connection-status" class="status-msg">Firebaseに接続中...</div>
+      <p id="connection-status" class="status-msg">Firebaseに接続中…</p>
 
-      <div class="lobby-card">
-        <h2>部屋を作る</h2>
-        <button id="create-room-btn" disabled>新しい部屋を作成</button>
-      </div>
+      <div class="lobby-grid">
+        <div class="lobby-card lobby-card--primary">
+          <span class="mono-label">まずはここから</span>
+          <h2>部屋を作る</h2>
+          <p class="lobby-card-copy">自分が先手になって新しい部屋を作ります。</p>
+          <button id="create-room-btn" class="btn btn--pear" disabled>新しい部屋を作成</button>
+        </div>
 
-      <div class="lobby-card">
-        <h2>部屋に入る</h2>
-        <input id="room-code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="部屋コード(4桁)" autocomplete="off" />
-        <button id="join-room-btn" disabled>参加する</button>
+        <div class="lobby-card lobby-card--secondary">
+          <span class="mono-label">招待された人はこちら</span>
+          <h2>部屋に入る</h2>
+          <input id="room-code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="0000" autocomplete="off" />
+          <button id="join-room-btn" class="btn btn--outline btn--cyan" disabled>参加する</button>
+        </div>
       </div>
 
       <p id="lobby-error" class="error-msg"></p>
@@ -37,27 +52,28 @@
     <!-- 対戦画面 -->
     <section id="game-screen" class="screen hidden">
       <div class="game-header">
-        <div>部屋コード: <span id="room-code-display"></span>
-          <button id="copy-link-btn" title="招待リンクをコピー">🔗リンクをコピー</button>
+        <div class="room-chip">
+          部屋コード <span id="room-code-display" class="mono-num"></span>
+          <button id="copy-link-btn" class="btn btn--soft btn--sm">リンクをコピー</button>
         </div>
         <div id="player-role"></div>
-        <button id="leave-room-btn">部屋を出る</button>
+        <button id="leave-room-btn" class="btn btn--outline btn--sm">部屋を出る</button>
       </div>
 
-      <div id="waiting-msg" class="status-msg hidden">対戦相手を待っています。部屋コードまたはリンクを相手に共有してください。</div>
+      <p id="waiting-msg" class="status-msg hidden">対戦相手を待っています。部屋コードまたはリンクを相手に共有してください。</p>
 
-      <div id="turn-indicator" class="status-msg"></div>
+      <p id="turn-indicator" class="status-msg"></p>
       <div id="result-msg" class="result-msg hidden"></div>
 
       <div class="game-area">
-        <div class="hand" id="hand-gote">
+        <div class="hand hand--gote" id="hand-gote">
           <h3>後手 持ち駒</h3>
           <div class="hand-pieces" id="hand-gote-pieces"></div>
         </div>
 
         <div id="board" class="board"></div>
 
-        <div class="hand" id="hand-sente">
+        <div class="hand hand--sente" id="hand-sente">
           <h3>先手 持ち駒</h3>
           <div class="hand-pieces" id="hand-sente-pieces"></div>
         </div>
@@ -66,14 +82,14 @@
   </main>
 
   <footer>
-    <p>ルール: ライオンを取るか、相手陣最奥列にライオンが到達すると勝ち(トライルール簡易版)。</p>
+    <p>ルール — ライオンを取るか、相手陣最奥列にライオンが到達すると勝ち(トライルール簡易版)。</p>
   </footer>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=3"></script>
-  <script src="js/game-logic.js?v=3"></script>
-  <script src="js/app.js?v=3"></script>
+  <script src="js/firebase-config.js?v=4"></script>
+  <script src="js/game-logic.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>

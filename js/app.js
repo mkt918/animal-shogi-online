@@ -187,10 +187,10 @@ function render() {
   const roleEl = el('player-role');
   roleEl.classList.remove('role-sente', 'role-gote', 'role-spectator');
   if (myRole === 'sente') {
-    roleEl.innerHTML = '🟡 あなたは<strong>先手</strong>';
+    roleEl.innerHTML = 'あなたは<strong>先手</strong>';
     roleEl.classList.add('role-sente');
   } else if (myRole === 'gote') {
-    roleEl.innerHTML = '⚪ あなたは<strong>後手</strong>';
+    roleEl.innerHTML = 'あなたは<strong>後手</strong>';
     roleEl.classList.add('role-gote');
   } else {
     roleEl.textContent = '観戦中';
@@ -201,8 +201,16 @@ function render() {
   if (state.winner) {
     const winnerLabel = state.winner === 'sente' ? '先手' : '後手';
     const reasonLabel = state.winReason === 'try' ? 'トライ' : 'ライオン捕獲';
-    el('result-msg').textContent = `${winnerLabel}の勝ち!(${reasonLabel})`;
-    el('result-msg').classList.remove('hidden');
+    const resultEl = el('result-msg');
+    const wasHidden = resultEl.classList.contains('hidden');
+    resultEl.textContent = `${winnerLabel}の勝ち!(${reasonLabel})`;
+    resultEl.classList.remove('hidden');
+    if (wasHidden) {
+      const burst = document.createElement('span');
+      burst.className = 'star-burst';
+      resultEl.appendChild(burst);
+      burst.addEventListener('animationend', () => burst.remove());
+    }
     el('turn-indicator').textContent = '対局終了';
   } else {
     el('result-msg').classList.add('hidden');
@@ -373,7 +381,7 @@ function setupUIEvents() {
   el('copy-link-btn').addEventListener('click', () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       el('copy-link-btn').textContent = 'コピーしました!';
-      setTimeout(() => { el('copy-link-btn').textContent = '🔗リンクをコピー'; }, 1500);
+      setTimeout(() => { el('copy-link-btn').textContent = 'リンクをコピー'; }, 1500);
     });
   });
 }
