@@ -390,6 +390,14 @@ main {
   width: 100%;
 }
 
+/* 通常(先手視点): 後手トレイ→盤→先手トレイ。後手番でプレイ中は自分のトレイを手前(下)に反転する */
+.hand--gote { order: 1; }
+.board { order: 2; }
+.hand--sente { order: 3; }
+
+.game-area.flipped .hand--gote { order: 3; }
+.game-area.flipped .hand--sente { order: 1; }
+
 .board {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 90px));
@@ -468,6 +476,9 @@ main {
 .piece.owner-gote {
   background: var(--color-accent-2);
   color: var(--color-accent-2-ink);
+}
+
+.piece.piece-rotated {
   transform: rotate(180deg);
 }
 

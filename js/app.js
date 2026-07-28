@@ -219,12 +219,16 @@ function render() {
     el('turn-indicator').textContent = `${turnLabel}の番です${isMyTurn ? '(あなたの番)' : ''}`;
   }
 
-  renderBoard(state);
-  renderHand('sente', state);
-  renderHand('gote', state);
+  // 後手番でプレイしている間は、自分の駒が手前(下)に来るよう盤面と持ち駒を反転表示する
+  const orientation = myRole === 'gote' ? 'gote' : 'sente';
+  el('game-area').classList.toggle('flipped', orientation === 'gote');
+
+  renderBoard(state, orientation);
+  renderHand('sente', state, orientation);
+  renderHand('gote', state, orientation);
 }
 
-function renderBoard(state) {
+function renderBoard(state, orientation) {
   const boardEl = el('board');
   boardEl.innerHTML = '';
 
@@ -244,8 +248,16 @@ function renderBoard(state) {
     }
   }
 
-  for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
-    for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
+  // orientation が gote のときは表示順を180度反転する(データ上のrow/colは変えない)
+  const rowOrder = orientation === 'gote'
+    ? [...Array(GameLogic.BOARD_ROWS).keys()].reverse()
+    : [...Array(GameLogic.BOARD_ROWS).keys()];
+  const colOrder = orientation === 'gote'
+    ? [...Array(GameLogic.BOARD_COLS).keys()].reverse()
+    : [...Array(GameLogic.BOARD_COLS).keys()];
+
+  rowOrder.forEach((r) => {
+    colOrder.forEach((c) => {
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.dataset.row = r;
@@ -254,7 +266,8 @@ function renderBoard(state) {
       const piece = state.board[r][c];
       if (piece) {
         const pieceEl = document.createElement('div');
-        pieceEl.className = `piece owner-${piece.owner}`;
+        const rotated = piece.owner !== orientation;
+        pieceEl.className = `piece owner-${piece.owner}${rotated ? ' piece-rotated' : ''}`;
         pieceEl.innerHTML = `<span class="emoji">${PIECE_EMOJI[piece.type]}</span><span>${GameLogic.PIECE_NAMES[piece.type]}</span>`;
         cell.appendChild(pieceEl);
       }
@@ -271,11 +284,11 @@ function renderBoard(state) {
 
       cell.addEventListener('click', () => onCellClick(r, c));
       boardEl.appendChild(cell);
-    }
-  }
+    });
+  });
 }
 
-function renderHand(owner, state) {
+function renderHand(owner, state, orientation) {
   const container = el(`hand-${owner}-pieces`);
   container.innerHTML = '';
   const canInteract = myRole === owner && myRole === state.turn && !state.winner;
