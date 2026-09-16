@@ -58,18 +58,26 @@ function createInitialState() {
   board[3][2] = { type: 'giraffe', owner: 'sente' };
   board[2][1] = { type: 'chick', owner: 'sente' };
 
-  return {
+  const state = {
     board,
     turn: 'sente',
     hands: { sente: [], gote: [] }, // 持ち駒: ['chick', 'giraffe', ...]
-    winner: null, // null | 'sente' | 'gote'
-    winReason: null, // 'capture' | 'try'
+    winner: null, // null | 'sente' | 'gote' | 'draw'
+    winReason: null, // 'capture' | 'try' | 'resign' | 'repetition'
     moveCount: 0,
+    lastMove: null, // { from: {row,col} | null, to: {row,col} } (from が null なら打った手)
+    history: [], // 千日手判定用の局面キー履歴
   };
+  state.history.push(positionKey(state));
+  return state;
 }
 
 function inBounds(row, col) {
   return row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS;
+}
+
+function otherOwner(owner) {
+  return owner === 'sente' ? 'gote' : 'sente';
 }
 
 function cloneState(state) {
@@ -80,7 +88,20 @@ function cloneState(state) {
     winner: state.winner,
     winReason: state.winReason,
     moveCount: state.moveCount,
+    lastMove: state.lastMove ? { from: state.lastMove.from ? { ...state.lastMove.from } : null, to: { ...state.lastMove.to } } : null,
+    history: [...(state.history || [])],
   };
+}
+
+/** 局面(盤面+持ち駒+手番)を一意に表す文字列。千日手判定に使う。 */
+function positionKey(state) {
+  const cells = state.board
+    .flat()
+    .map((p) => (p ? `${p.type[0]}${p.owner[0]}` : '..'))
+    .join('');
+  const hs = [...state.hands.sente].sort().join(',');
+  const hg = [...state.hands.gote].sort().join(',');
+  return `${cells}|${hs}|${hg}|${state.turn}`;
 }
 
 /** 盤上のある駒が到達できるマス一覧(自駒があるマスは除く)を返す */
@@ -116,6 +137,64 @@ function isLastRowFor(owner, row) {
   return owner === 'sente' ? row === 0 : row === BOARD_ROWS - 1;
 }
 
+function findLion(state, owner) {
+  for (let r = 0; r < BOARD_ROWS; r++) {
+    for (let c = 0; c < BOARD_COLS; c++) {
+      const p = state.board[r][c];
+      if (p && p.type === 'lion' && p.owner === owner) return { row: r, col: c };
+    }
+  }
+  return null;
+}
+
+/** (row,col) が byOwner の駒のいずれかに取られうるマスかどうか */
+function isAttacked(state, row, col, byOwner) {
+  for (let r = 0; r < BOARD_ROWS; r++) {
+    for (let c = 0; c < BOARD_COLS; c++) {
+      const p = state.board[r][c];
+      if (!p || p.owner !== byOwner) continue;
+      if (getPieceDestinations(state, r, c).some((d) => d.row === row && d.col === col)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 1手が完了したあとの終局判定(ライオン捕獲以外)。
+ * - トライ: 自分のライオンが相手陣最奥列にいて、相手がそれを取れなければ勝ち。
+ *           取れる位置なら勝負は持ち越し、相手が取らなかった場合は次の相手の手のあとで勝ちが確定する。
+ * - 千日手: 同一局面が3回現れたら引き分け。
+ */
+function applyEndConditions(next, mover) {
+  if (next.winner) return;
+  const opp = otherOwner(mover);
+
+  // 相手が前の手でトライしていて、この手で取らなかった → 相手の勝ち
+  const oppLion = findLion(next, opp);
+  if (oppLion && isLastRowFor(opp, oppLion.row)) {
+    next.winner = opp;
+    next.winReason = 'try';
+    return;
+  }
+
+  // 自分のライオンが相手陣最奥列にいて、取られる心配がなければ勝ち
+  const myLion = findLion(next, mover);
+  if (myLion && isLastRowFor(mover, myLion.row) && !isAttacked(next, myLion.row, myLion.col, opp)) {
+    next.winner = mover;
+    next.winReason = 'try';
+    return;
+  }
+
+  // 千日手
+  const key = positionKey(next);
+  next.history.push(key);
+  const count = next.history.filter((k) => k === key).length;
+  if (count >= 3) {
+    next.winner = 'draw';
+    next.winReason = 'repetition';
+  }
+}
+
 /**
  * 盤上の駒を動かす。プロモーション判定込み。state は変更せず新しい state を返す。
  */
@@ -142,18 +221,10 @@ function movePiece(state, from, to) {
   }
 
   next.board[to.row][to.col] = piece;
-
-  // トライルール(簡易版): ライオンが相手最奥列に到達したら即勝利
-  if (piece.type === 'lion' && !next.winner) {
-    const enemyLastRow = piece.owner === 'sente' ? 0 : BOARD_ROWS - 1;
-    if (to.row === enemyLastRow) {
-      next.winner = piece.owner;
-      next.winReason = 'try';
-    }
-  }
-
+  next.lastMove = { from: { row: from.row, col: from.col }, to: { row: to.row, col: to.col } };
   next.moveCount += 1;
-  next.turn = piece.owner === 'sente' ? 'gote' : 'sente';
+  next.turn = otherOwner(piece.owner);
+  applyEndConditions(next, piece.owner);
   return next;
 }
 
@@ -169,8 +240,18 @@ function dropPiece(state, pieceType, to) {
 
   next.hands[owner].splice(handIndex, 1);
   next.board[to.row][to.col] = { type: pieceType, owner };
+  next.lastMove = { from: null, to: { row: to.row, col: to.col } };
   next.moveCount += 1;
-  next.turn = owner === 'sente' ? 'gote' : 'sente';
+  next.turn = otherOwner(owner);
+  applyEndConditions(next, owner);
+  return next;
+}
+
+/** 投了。owner が投了し、相手の勝ちになる。 */
+function resign(state, owner) {
+  const next = cloneState(state);
+  next.winner = otherOwner(owner);
+  next.winReason = 'resign';
   return next;
 }
 
@@ -182,12 +263,14 @@ const GameLogic = {
   BOARD_ROWS,
   BOARD_COLS,
   PIECE_NAMES,
+  MOVES,
   createInitialState,
   cloneState,
   getPieceDestinations,
   getDropDestinations,
   movePiece,
   dropPiece,
+  resign,
   isGameOver,
 };
 

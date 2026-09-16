@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/tokens.css" />
-<link rel="stylesheet" href="css/style.css?v=3" />
+<link rel="stylesheet" href="css/style.css?v=4" />
 </head>
 <body>
   <header class="masthead">
@@ -47,6 +47,20 @@
       </div>
 
       <p id="lobby-error" class="error-msg"></p>
+
+      <details class="rules">
+        <summary>あそびかた・ルール</summary>
+        <ul>
+          <li>3×4の盤で、自分のライオンを守りながら相手のライオンをつかまえます。</li>
+          <li>駒の面にある点が、その駒の進める方向です。自分の駒にカーソルを載せる(またはタップ)と行けるマスが光ります。</li>
+          <li>ライオン🦁は全方向、ゾウ🐘は斜め、キリン🦒はたて・よこ、ヒヨコ🐤は前に1マスずつ動けます。</li>
+          <li>取った駒は持ち駒になり、自分の番に空いているマスへ打てます。</li>
+          <li>ヒヨコが相手の一番奥の列まで進むとニワトリ🐔になり、たて・よこ・前ななめに動けます。</li>
+          <li><strong>キャッチ:</strong> 相手のライオンを取ると勝ち。</li>
+          <li><strong>トライ:</strong> 自分のライオンが相手の一番奥の列に入り、次の相手の番で取られなければ勝ち。取れる位置に入ると取られて負けです。</li>
+          <li>同じ局面が3回くり返されると引き分け(千日手)です。</li>
+        </ul>
+      </details>
     </section>
 
     <!-- 対戦画面 -->
@@ -64,6 +78,10 @@
 
       <p id="turn-indicator" class="status-msg"></p>
       <div id="result-msg" class="result-msg hidden"></div>
+      <div class="game-actions">
+        <button id="rematch-btn" class="btn btn--pear hidden">もう一度対戦(先後入れ替え)</button>
+        <button id="resign-btn" class="btn btn--outline btn--sm hidden">投了する</button>
+      </div>
 
       <div class="game-area" id="game-area">
         <div class="hand hand--gote" id="hand-gote">
@@ -82,14 +100,14 @@
   </main>
 
   <footer>
-    <p>ルール — ライオンを取るか、相手陣最奥列にライオンが到達すると勝ち(トライルール簡易版)。</p>
+    <p>キャッチ(相手のライオンを取る)またはトライ(自分のライオンが相手陣の奥まで進み、取られずに生き残る)で勝ち。同一局面3回で引き分け。</p>
   </footer>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=4"></script>
-  <script src="js/game-logic.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/firebase-config.js?v=5"></script>
+  <script src="js/game-logic.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

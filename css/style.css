@@ -138,6 +138,13 @@ main {
   font-weight: 600;
 }
 
+/* 自分の番のときは手番表示を目立たせる */
+.status-msg--mine {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 700;
+}
+
 .result-msg {
   position: relative;
   text-align: center;
@@ -150,6 +157,63 @@ main {
   border-radius: var(--radius-card);
   margin: var(--space-2xs) 0;
   overflow: visible;
+}
+
+.result-msg--lose {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+}
+
+.result-msg--draw {
+  background: var(--color-accent-2);
+  color: var(--color-accent-2-ink);
+}
+
+.game-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: var(--space-2xs) 0 var(--space-sm);
+}
+
+.game-actions:empty {
+  display: none;
+}
+
+/* ロビーのルール説明 */
+.rules {
+  width: 100%;
+  max-width: 720px;
+  margin-top: var(--space-lg);
+  background: var(--color-paper-2);
+  border-radius: var(--radius-card);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+}
+
+.rules summary {
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.rules ul {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.2em;
+  line-height: 1.7;
+}
+
+.rules li + li {
+  margin-top: var(--space-3xs);
+}
+
+.hand-empty {
+  align-self: center;
+  font-size: var(--text-xs);
+  color: color-mix(in oklch, var(--color-ink) 45%, transparent);
 }
 
 /* ---------- lobby ---------- */
@@ -440,20 +504,50 @@ main {
   z-index: 2;
 }
 
-.cell.reachable-preview::after {
+/* 駒にカーソルを載せたときの「この駒はここへ行ける」プレビュー */
+.cell.reachable-preview {
+  box-shadow: inset 0 0 0 3px color-mix(in oklch, var(--color-mint) 70%, var(--color-paper));
+}
+
+.cell.reachable-preview:not(.destination)::after {
   content: "";
   position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: var(--color-mint);
-  border: 1px solid var(--color-paper);
-  z-index: 3;
+  background: color-mix(in oklch, var(--color-mint) 80%, black 10%);
+  opacity: 0.8;
+  z-index: 2;
+}
+
+/* 相手の駒があるマスへ行ける場合は、駒の上に「取れる」印を出す */
+.cell.reachable-preview:has(.piece)::after,
+.cell.destination:has(.piece)::after {
+  width: auto;
+  height: auto;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-accent-3-ink);
+  background: var(--color-accent-3);
+  content: "とれる";
+  opacity: 1;
+  z-index: 4;
+}
+
+/* 直前の手(動かした元と先)を薄く示す */
+.cell.last-move {
+  background: color-mix(in oklch, var(--color-accent-3) 22%, var(--color-paper-2));
+  box-shadow: inset 0 0 0 3px color-mix(in oklch, var(--color-accent-3) 45%, var(--color-paper-2));
 }
 
 .piece {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -463,10 +557,32 @@ main {
   border-radius: calc(var(--radius-cell) - 2px);
   font-weight: 700;
   font-family: var(--font-display);
-  font-size: var(--text-xs);
   line-height: 1.1;
   transition: transform var(--dur-med) var(--ease-spring);
 }
+
+.piece-name {
+  font-size: var(--text-xs);
+}
+
+/* 駒の面の方向ドット。本物のどうぶつしょうぎと同じ表記。
+   dr-1=前(上) / dr0=横 / dr1=後ろ(下)、dc-1=左 / dc0=中央 / dc1=右 */
+.move-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.move-dot.dr-1 { top: 5px; }
+.move-dot.dr0  { top: 50%; margin-top: -3.5px; }
+.move-dot.dr1  { bottom: 5px; }
+.move-dot.dc-1 { left: 5px; }
+.move-dot.dc0  { left: 50%; margin-left: -3.5px; }
+.move-dot.dc1  { right: 5px; }
 
 .piece.owner-sente {
   background: var(--color-accent);

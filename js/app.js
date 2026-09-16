@@ -198,25 +198,51 @@ function render() {
   }
   el('waiting-msg').classList.toggle('hidden', status !== 'waiting');
 
-  if (state.winner) {
-    const winnerLabel = state.winner === 'sente' ? '先手' : '後手';
-    const reasonLabel = state.winReason === 'try' ? 'トライ' : 'ライオン捕獲';
+  const isPlayer = myRole === 'sente' || myRole === 'gote';
+  const gameOver = !!state.winner;
+  el('resign-btn').classList.toggle('hidden', !isPlayer || gameOver || status !== 'playing');
+  el('rematch-btn').classList.toggle('hidden', !isPlayer || !gameOver);
+
+  if (gameOver) {
     const resultEl = el('result-msg');
     const wasHidden = resultEl.classList.contains('hidden');
-    resultEl.textContent = `${winnerLabel}の勝ち!(${reasonLabel})`;
+    let text;
+    if (state.winner === 'draw') {
+      text = '引き分け(千日手)';
+    } else {
+      const reasonLabel = { try: 'トライ', capture: 'ライオンをキャッチ', resign: '投了' }[state.winReason] || '';
+      const winnerLabel = state.winner === 'sente' ? '先手' : '後手';
+      const youWon = myRole === state.winner;
+      const youLost = isPlayer && !youWon;
+      text = `${youWon ? 'あなたの勝ち!' : youLost ? 'あなたの負け' : `${winnerLabel}の勝ち`}(${reasonLabel})`;
+    }
+    resultEl.textContent = text;
+    resultEl.classList.toggle('result-msg--draw', state.winner === 'draw');
+    resultEl.classList.toggle('result-msg--lose', isPlayer && state.winner !== 'draw' && myRole !== state.winner);
     resultEl.classList.remove('hidden');
-    if (wasHidden) {
+    if (wasHidden && (myRole === state.winner || !isPlayer)) {
       const burst = document.createElement('span');
       burst.className = 'star-burst';
       resultEl.appendChild(burst);
       burst.addEventListener('animationend', () => burst.remove());
     }
     el('turn-indicator').textContent = '対局終了';
+    el('turn-indicator').classList.remove('status-msg--mine');
   } else {
     el('result-msg').classList.add('hidden');
     const turnLabel = state.turn === 'sente' ? '先手' : '後手';
     const isMyTurn = myRole === state.turn;
-    el('turn-indicator').textContent = `${turnLabel}の番です${isMyTurn ? '(あなたの番)' : ''}`;
+    const turnEl = el('turn-indicator');
+    if (status === 'waiting') {
+      turnEl.textContent = '相手の参加を待っています';
+    } else if (!isPlayer) {
+      turnEl.textContent = `${turnLabel}の番です`;
+    } else if (isMyTurn) {
+      turnEl.textContent = 'あなたの番です。駒をタップして動かしましょう';
+    } else {
+      turnEl.textContent = '相手の番です。しばらくお待ちください';
+    }
+    turnEl.classList.toggle('status-msg--mine', isPlayer && isMyTurn && status === 'playing');
   }
 
   // 後手番でプレイしている間は、自分の駒が手前(下)に来るよう盤面と持ち駒を反転表示する
@@ -233,20 +259,8 @@ function renderBoard(state, orientation) {
   boardEl.innerHTML = '';
 
   const legalDests = getLegalDestinationsForSelection(state);
-  const myTurnActive = !state.winner && myRole === state.turn;
-
-  // 選択していない間も、自分の駒それぞれが動ける先を薄いドットで常時表示する
-  const ownReachable = [];
-  if (myTurnActive && !selected) {
-    for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
-      for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
-        const p = state.board[r][c];
-        if (p && p.owner === myRole) {
-          ownReachable.push(...GameLogic.getPieceDestinations(state, r, c));
-        }
-      }
-    }
-  }
+  const myTurnActive = !state.winner && myRole === state.turn && currentGameDoc.status === 'playing';
+  const last = state.lastMove;
 
   // orientation が gote のときは表示順を180度反転する(データ上のrow/colは変えない)
   const rowOrder = orientation === 'gote'
@@ -264,22 +278,26 @@ function renderBoard(state, orientation) {
       cell.dataset.col = c;
 
       const piece = state.board[r][c];
+      const isOwnMovable = myTurnActive && piece && piece.owner === myRole;
       if (piece) {
-        const pieceEl = document.createElement('div');
         const rotated = piece.owner !== orientation;
-        pieceEl.className = `piece owner-${piece.owner}${rotated ? ' piece-rotated' : ''}`;
-        pieceEl.innerHTML = `<span class="emoji">${PIECE_EMOJI[piece.type]}</span><span>${GameLogic.PIECE_NAMES[piece.type]}</span>`;
-        cell.appendChild(pieceEl);
+        cell.appendChild(createPieceElement(piece, rotated));
+        if (isOwnMovable) {
+          cell.classList.add('selectable');
+          // カーソルを載せるだけで、その駒が行けるマスをプレビューする
+          cell.addEventListener('mouseenter', () => previewDestinations(GameLogic.getPieceDestinations(state, r, c)));
+          cell.addEventListener('mouseleave', clearPreview);
+        }
       }
 
       if (selected && selected.kind === 'board' && selected.row === r && selected.col === c) {
         cell.classList.add('selected');
       }
       if (legalDests.some((d) => d.row === r && d.col === c)) {
-        cell.classList.add('destination');
+        cell.classList.add('destination', 'selectable');
       }
-      if (ownReachable.some((d) => d.row === r && d.col === c)) {
-        cell.classList.add('reachable-preview');
+      if (last && ((last.from && last.from.row === r && last.from.col === c) || (last.to.row === r && last.to.col === c))) {
+        cell.classList.add('last-move');
       }
 
       cell.addEventListener('click', () => onCellClick(r, c));
@@ -288,10 +306,39 @@ function renderBoard(state, orientation) {
   });
 }
 
+/**
+ * 駒の要素を作る。本物のどうぶつしょうぎと同じく、駒の面に進める方向を点で示す。
+ * 点は「駒の前方=上」の座標系で描き、相手の駒は CSS で180度回転させるので向きが自動的に合う。
+ */
+function createPieceElement(piece, rotated) {
+  const pieceEl = document.createElement('div');
+  pieceEl.className = `piece owner-${piece.owner}${rotated ? ' piece-rotated' : ''}`;
+  pieceEl.innerHTML = `<span class="emoji">${PIECE_EMOJI[piece.type]}</span><span class="piece-name">${GameLogic.PIECE_NAMES[piece.type]}</span>`;
+  for (const [dr, dc] of GameLogic.MOVES[piece.type]) {
+    const dot = document.createElement('i');
+    dot.className = `move-dot dr${dr} dc${dc}`;
+    pieceEl.appendChild(dot);
+  }
+  return pieceEl;
+}
+
+function previewDestinations(dests) {
+  if (selected) return; // 選択中は正式なハイライトを優先
+  clearPreview();
+  dests.forEach((d) => {
+    const cellEl = document.querySelector(`.cell[data-row="${d.row}"][data-col="${d.col}"]`);
+    if (cellEl) cellEl.classList.add('reachable-preview');
+  });
+}
+
+function clearPreview() {
+  document.querySelectorAll('.cell.reachable-preview').forEach((c) => c.classList.remove('reachable-preview'));
+}
+
 function renderHand(owner, state, orientation) {
   const container = el(`hand-${owner}-pieces`);
   container.innerHTML = '';
-  const canInteract = myRole === owner && myRole === state.turn && !state.winner;
+  const canInteract = myRole === owner && myRole === state.turn && !state.winner && currentGameDoc.status === 'playing';
 
   state.hands[owner].forEach((pieceType, idx) => {
     const pieceEl = document.createElement('div');
@@ -303,11 +350,16 @@ function renderHand(owner, state, orientation) {
     }
     if (canInteract) {
       pieceEl.addEventListener('click', () => onHandPieceClick(owner, idx, pieceType));
-      pieceEl.addEventListener('mouseenter', () => onHandPieceMouseEnter(state));
-      pieceEl.addEventListener('mouseleave', onHandPieceMouseLeave);
+      pieceEl.addEventListener('mouseenter', () => previewDestinations(GameLogic.getDropDestinations(state)));
+      pieceEl.addEventListener('mouseleave', clearPreview);
     }
     container.appendChild(pieceEl);
   });
+
+  const emptyEl = document.createElement('span');
+  emptyEl.className = 'hand-empty';
+  emptyEl.textContent = 'なし';
+  if (state.hands[owner].length === 0) container.appendChild(emptyEl);
 }
 
 function getLegalDestinationsForSelection(state) {
@@ -323,8 +375,8 @@ function getLegalDestinationsForSelection(state) {
 
 function onCellClick(row, col) {
   if (!currentGameDoc) return;
-  const { state } = currentGameDoc;
-  if (state.winner) return;
+  const { state, status } = currentGameDoc;
+  if (state.winner || status !== 'playing') return;
   if (myRole !== state.turn) return;
 
   const piece = state.board[row][col];
@@ -354,20 +406,6 @@ function onCellClick(row, col) {
   render();
 }
 
-function onHandPieceMouseEnter(state) {
-  if (!currentGameDoc || selected) return;
-  const dests = GameLogic.getDropDestinations(state);
-  dests.forEach((d) => {
-    const cellEl = document.querySelector(`.cell[data-row="${d.row}"][data-col="${d.col}"]`);
-    if (cellEl) cellEl.classList.add('reachable-preview');
-  });
-}
-
-function onHandPieceMouseLeave() {
-  document.querySelectorAll('.cell.reachable-preview').forEach((c) => c.classList.remove('reachable-preview'));
-  if (currentGameDoc && !selected) renderBoard(currentGameDoc.state);
-}
-
 function onHandPieceClick(owner, index, pieceType) {
   if (!currentGameDoc) return;
   const { state } = currentGameDoc;
@@ -381,8 +419,35 @@ function onHandPieceClick(owner, index, pieceType) {
   render();
 }
 
+async function resignGame() {
+  if (!currentGameDoc || !roomCode) return;
+  const { state } = currentGameDoc;
+  if (state.winner || (myRole !== 'sente' && myRole !== 'gote')) return;
+  if (!window.confirm('投了しますか?(相手の勝ちになります)')) return;
+  pushState(GameLogic.resign(state, myRole));
+}
+
+/** 再戦。先手と後手を入れ替えて初期局面から始める。 */
+async function rematch() {
+  if (!currentGameDoc || !roomCode) return;
+  const { players } = currentGameDoc;
+  if (!players.sente || !players.gote) return;
+  try {
+    await db.collection('games').doc(roomCode).update({
+      state: serializeState(GameLogic.createInitialState()),
+      players: { sente: players.gote, gote: players.sente },
+      status: 'playing',
+    });
+  } catch (e) {
+    console.error(e);
+    alert('通信エラーが発生しました: ' + e.message);
+  }
+}
+
 function setupUIEvents() {
   el('create-room-btn').addEventListener('click', createRoom);
+  el('resign-btn').addEventListener('click', resignGame);
+  el('rematch-btn').addEventListener('click', rematch);
   el('join-room-btn').addEventListener('click', () => {
     const code = el('room-code-input').value.trim().toUpperCase();
     joinRoom(code);
