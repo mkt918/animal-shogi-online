@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/tokens.css" />
-<link rel="stylesheet" href="css/style.css?v=4" />
+<link rel="stylesheet" href="css/style.css?v=5" />
 </head>
 <body>
   <header class="masthead">
@@ -48,6 +48,13 @@
 
       <p id="lobby-error" class="error-msg"></p>
 
+      <div class="lobby-card lobby-card--wide">
+        <span class="mono-label">3人以上で遊ぶなら</span>
+        <h2>大会モード</h2>
+        <p class="lobby-card-copy">リーグ戦(総当たり)で順位を競います。大会コードを共有して集まりましょう。</p>
+        <a class="btn btn--soft" href="tournament.html">大会を作る・参加する</a>
+      </div>
+
       <details class="rules">
         <summary>あそびかた・ルール</summary>
         <ul>
@@ -81,6 +88,7 @@
       <div class="game-actions">
         <button id="rematch-btn" class="btn btn--pear hidden">もう一度対戦(先後入れ替え)</button>
         <button id="resign-btn" class="btn btn--outline btn--sm hidden">投了する</button>
+        <a id="back-to-tournament-btn" class="btn btn--cyan hidden" href="tournament.html">大会に戻る</a>
       </div>
 
       <div class="game-area" id="game-area">
@@ -108,6 +116,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js?v=5"></script>
   <script src="js/game-logic.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

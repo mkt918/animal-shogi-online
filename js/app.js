@@ -115,7 +115,10 @@ async function joinRoom(code) {
         return; // 既に参加済み(再入室)
       }
       if (data.players.gote) {
-        throw new Error('部屋は満員です。');
+        return; // 満員なら観戦として入室
+      }
+      if (data.expectedGote && data.expectedGote !== uid) {
+        return; // 大会の対局は相手が決まっているので、それ以外の人は観戦
       }
       tx.update(ref, { 'players.gote': uid, status: 'playing' });
     });
@@ -144,6 +147,7 @@ function enterRoom(code) {
     determineRole();
     selected = null;
     render();
+    maybeReportTournamentResult();
   }, (err) => {
     console.error(err);
     el('lobby-error').textContent = '接続エラー: ' + err.message;
@@ -169,6 +173,35 @@ function leaveRoom() {
   window.history.replaceState({}, '', url);
   el('game-screen').classList.add('hidden');
   el('lobby-screen').classList.remove('hidden');
+}
+
+// 大会(トーナメント/リーグ)に属する対局が終わったら、その結果を大会ドキュメントへ自動で書き戻す。
+// 当事者(先手/後手)のどちらかが1回だけ書けばよいので、トランザクションで二重書き込みを防ぐ。
+let reportedRoom = null;
+async function maybeReportTournamentResult() {
+  const d = currentGameDoc;
+  if (!d || !d.tournamentId || !d.matchId || !d.state.winner) return;
+  if (myRole !== 'sente' && myRole !== 'gote') return;
+  if (reportedRoom === roomCode) return;
+  reportedRoom = roomCode;
+  const ref = db.collection('tournaments').doc(d.tournamentId);
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      const t = snap.data();
+      const matches = (t.matches || []).map((m) => ({ ...m }));
+      const m = matches.find((x) => x.id === d.matchId);
+      if (!m || m.winner) return;
+      m.winner = d.state.winner === 'draw' ? 'draw' : d.players[d.state.winner];
+      m.gameId = roomCode;
+      const finished = matches.every((x) => x.winner);
+      tx.update(ref, { matches, status: finished ? 'finished' : t.status });
+    });
+  } catch (e) {
+    console.error('大会への結果反映に失敗', e);
+    reportedRoom = null;
+  }
 }
 
 async function pushState(newState) {
@@ -200,8 +233,12 @@ function render() {
 
   const isPlayer = myRole === 'sente' || myRole === 'gote';
   const gameOver = !!state.winner;
+  const inTournament = !!currentGameDoc.tournamentId;
   el('resign-btn').classList.toggle('hidden', !isPlayer || gameOver || status !== 'playing');
-  el('rematch-btn').classList.toggle('hidden', !isPlayer || !gameOver);
+  el('rematch-btn').classList.toggle('hidden', !isPlayer || !gameOver || inTournament);
+  const backBtn = el('back-to-tournament-btn');
+  backBtn.classList.toggle('hidden', !inTournament);
+  if (inTournament) backBtn.href = `tournament.html?code=${encodeURIComponent(currentGameDoc.tournamentId)}`;
 
   if (gameOver) {
     const resultEl = el('result-msg');

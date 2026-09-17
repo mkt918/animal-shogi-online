@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>どうぶつしょうぎ 大会モード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/style.css?v=5" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wordmark">
+      <span class="character-mark" aria-hidden="true">🏆</span>
+      <div>
+        <h1>どうぶつしょうぎ</h1>
+        <p class="wordmark-sub">大会モード</p>
+      </div>
+    </div>
+    <a class="btn btn--outline btn--sm" href="index.html">1対1の対戦に戻る</a>
+  </header>
+
+  <main>
+    <p id="connection-status" class="status-msg">Firebaseに接続中…</p>
+    <p id="t-error" class="error-msg"></p>
+
+    <!-- 大会の作成/参加 -->
+    <section id="t-entry" class="screen hidden">
+      <div class="lobby-grid">
+        <div class="lobby-card lobby-card--primary">
+          <span class="mono-label">主催する人</span>
+          <h2>大会を作る</h2>
+          <label class="field">
+            <span>あなたの名前</span>
+            <input id="host-name" maxlength="12" placeholder="例: たろう" autocomplete="nickname" />
+          </label>
+          <label class="field">
+            <span>形式</span>
+            <select id="format-select">
+              <option value="league">リーグ戦(総当たり)</option>
+              <option value="knockout" disabled>トーナメント(準備中)</option>
+            </select>
+          </label>
+          <button id="create-t-btn" class="btn btn--pear">大会を作成</button>
+        </div>
+
+        <div class="lobby-card lobby-card--secondary">
+          <span class="mono-label">参加する人</span>
+          <h2>大会に入る</h2>
+          <label class="field">
+            <span>あなたの名前</span>
+            <input id="join-name" maxlength="12" placeholder="例: はなこ" autocomplete="nickname" />
+          </label>
+          <label class="field">
+            <span>大会コード</span>
+            <input id="t-code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="0000" autocomplete="off" />
+          </label>
+          <button id="join-t-btn" class="btn btn--outline btn--cyan">参加する</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 大会画面 -->
+    <section id="t-screen" class="screen hidden">
+      <div class="game-header">
+        <div class="room-chip">
+          大会コード <span id="t-code-display" class="mono-num"></span>
+          <button id="copy-t-link-btn" class="btn btn--soft btn--sm">リンクをコピー</button>
+        </div>
+        <div id="t-status-badge"></div>
+      </div>
+
+      <div class="t-layout">
+        <div class="t-card">
+          <h3>参加者 <span id="t-player-count" class="mono-num"></span></h3>
+          <ul id="t-players" class="t-player-list"></ul>
+          <div id="t-host-controls" class="hidden">
+            <p class="lobby-card-copy">全員が集まったら組み合わせを作ります。開始後は参加者を追加できません。</p>
+            <button id="start-t-btn" class="btn btn--pear">組み合わせを作って開始</button>
+          </div>
+          <p id="t-wait-msg" class="lobby-card-copy hidden">主催者が開始するまでお待ちください。</p>
+        </div>
+
+        <div class="t-card" id="t-standings-card">
+          <h3>順位表</h3>
+          <table class="standings" id="t-standings"></table>
+        </div>
+      </div>
+
+      <div class="t-card" id="t-schedule-card">
+        <h3>対局表</h3>
+        <div id="t-rounds"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>リーグ戦: 勝ち3点・引き分け1点。対局が終わると自動で順位表に反映されます。</p>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js?v=5"></script>
+  <script src="js/game-logic.js?v=5"></script>
+  <script src="js/tournament-logic.js?v=1"></script>
+  <script src="js/tournament.js?v=1"></script>
+</body>
+</html>
