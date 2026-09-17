@@ -177,6 +177,7 @@ function leaveRoom() {
 
 // 大会(トーナメント/リーグ)に属する対局が終わったら、その結果を大会ドキュメントへ自動で書き戻す。
 // 当事者(先手/後手)のどちらかが1回だけ書けばよいので、トランザクションで二重書き込みを防ぐ。
+// リーグ戦/トーナメントの分岐(勝者の自動進出・引き分け時の再戦扱い)は TournamentLogic.reportResult に一本化している。
 let reportedRoom = null;
 async function maybeReportTournamentResult() {
   const d = currentGameDoc;
@@ -184,18 +185,16 @@ async function maybeReportTournamentResult() {
   if (myRole !== 'sente' && myRole !== 'gote') return;
   if (reportedRoom === roomCode) return;
   reportedRoom = roomCode;
+  const winnerUid = d.state.winner === 'draw' ? 'draw' : d.players[d.state.winner];
   const ref = db.collection('tournaments').doc(d.tournamentId);
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) return;
       const t = snap.data();
-      const matches = (t.matches || []).map((m) => ({ ...m }));
-      const m = matches.find((x) => x.id === d.matchId);
-      if (!m || m.winner) return;
-      m.winner = d.state.winner === 'draw' ? 'draw' : d.players[d.state.winner];
-      m.gameId = roomCode;
-      const finished = matches.every((x) => x.winner);
+      const existing = (t.matches || []).find((x) => x.id === d.matchId);
+      if (!existing || existing.winner) return; // 相手側がすでに書き込み済み
+      const { matches, finished } = TournamentLogic.reportResult(t.matches || [], d.matchId, winnerUid, t.format);
       tx.update(ref, { matches, status: finished ? 'finished' : t.status });
     });
   } catch (e) {

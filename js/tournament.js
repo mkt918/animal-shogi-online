@@ -140,7 +140,10 @@ function openTournament(code) {
 async function startTournament() {
   if (!tDoc || tDoc.hostUid !== uid) return;
   if (tDoc.players.length < 2) { showError('2人以上必要です。'); return; }
-  const matches = TournamentLogic.generateRoundRobin(tDoc.players.map((p) => p.uid));
+  const uids = tDoc.players.map((p) => p.uid);
+  const matches = tDoc.format === 'knockout'
+    ? TournamentLogic.generateKnockout(uids)
+    : TournamentLogic.generateRoundRobin(uids);
   try {
     await db.collection('tournaments').doc(tCode).update({ matches, status: 'running' });
   } catch (e) {
@@ -150,6 +153,7 @@ async function startTournament() {
 
 /** 対局を開始する。押した人が先手になり、games ドキュメントを作って対局画面へ移動する。 */
 async function startMatch(match) {
+  if (!match.p1 || !match.p2) return; // トーナメントで対戦相手がまだ決まっていない
   const opponent = match.p1 === uid ? match.p2 : match.p1;
   const gameCode = generateCode();
   const tRef = db.collection('tournaments').doc(tCode);
@@ -185,7 +189,7 @@ async function startMatch(match) {
 }
 
 function nameOf(pid) {
-  if (!pid) return '(休み)';
+  if (!pid) return tDoc.format === 'knockout' ? '(未定)' : '(休み)';
   const p = tDoc.players.find((x) => x.uid === pid);
   return p ? p.name : '?';
 }
@@ -215,12 +219,41 @@ function render() {
   });
 
   const started = t.status !== 'lobby';
-  el('t-standings-card').classList.toggle('hidden', !started);
+  const isKnockout = t.format === 'knockout';
+  el('t-standings-card').classList.toggle('hidden', !started || isKnockout);
   el('t-schedule-card').classList.toggle('hidden', !started);
-  if (!started) return;
+  el('t-schedule-title').textContent = isKnockout ? '勝ち上がり表' : '対局表';
+  el('t-footer-note').textContent = isKnockout
+    ? 'トーナメント: 負けたら終了(シングルエリミネーション)。引き分けの対局はもう一度同じ相手と対局します。'
+    : 'リーグ戦: 勝ち3点・引き分け1点。対局が終わると自動で順位表に反映されます。';
+  if (!started) {
+    el('t-champion').classList.add('hidden');
+    return;
+  }
 
-  renderStandings(t);
+  if (isKnockout) {
+    renderChampion(t);
+  } else {
+    el('t-champion').classList.add('hidden');
+    renderStandings(t);
+  }
   renderSchedule(t);
+}
+
+function renderChampion(t) {
+  const el2 = el('t-champion');
+  if (t.status !== 'finished') {
+    el2.classList.add('hidden');
+    return;
+  }
+  const final = t.matches.find((m) => !m.nextMatchId);
+  const championName = final && final.winner ? nameOf(final.winner) : null;
+  if (!championName) {
+    el2.classList.add('hidden');
+    return;
+  }
+  el2.textContent = final.winner === uid ? `優勝!おめでとうございます、${championName}さん 🏆` : `優勝: ${championName} 🏆`;
+  el2.classList.remove('hidden');
 }
 
 function makeTag(text, extraClass) {
@@ -259,40 +292,53 @@ function renderStandings(t) {
 function renderSchedule(t) {
   const container = el('t-rounds');
   container.innerHTML = '';
+  const isKnockout = t.format === 'knockout';
   const rounds = [...new Set(t.matches.map((m) => m.round))].sort((a, b) => a - b);
+  const totalRounds = Math.max(...rounds);
+
   rounds.forEach((r) => {
     const sec = document.createElement('div');
     sec.className = 'round';
     const h = document.createElement('h4');
-    h.textContent = `第${r}回戦`;
+    h.textContent = isKnockout ? TournamentLogic.knockoutRoundLabel(r, totalRounds) : `第${r}回戦`;
     sec.appendChild(h);
     const inRound = t.matches.filter((m) => m.round === r);
     inRound.forEach((m) => sec.appendChild(renderMatch(m)));
 
-    // このラウンドで休みの人
-    const playing = new Set(inRound.flatMap((m) => [m.p1, m.p2]));
-    const resting = t.players.filter((p) => !playing.has(p.uid));
-    if (resting.length) {
-      const p = document.createElement('p');
-      p.className = 'rest-note';
-      p.textContent = `休み: ${resting.map((x) => x.name).join('、')}`;
-      sec.appendChild(p);
+    if (!isKnockout) {
+      // このラウンドで休みの人(リーグ戦のみ)
+      const playing = new Set(inRound.flatMap((m) => [m.p1, m.p2]));
+      const resting = t.players.filter((p) => !playing.has(p.uid));
+      if (resting.length) {
+        const p = document.createElement('p');
+        p.className = 'rest-note';
+        p.textContent = `休み: ${resting.map((x) => x.name).join('、')}`;
+        sec.appendChild(p);
+      }
     }
     container.appendChild(sec);
   });
 }
 
+/** 対局中の名前欄に出す表示。トーナメントで枠が null のときは「不戦勝」か「未定」かを区別する。 */
+function opponentLabel(m, pid) {
+  if (pid) return nameOf(pid);
+  if (tDoc.format === 'knockout' && m.round === 1 && m.winner) return '(不戦勝)';
+  return nameOf(null);
+}
+
 function renderMatch(m) {
   const row = document.createElement('div');
   row.className = 'match';
-  const mine = m.p1 === uid || m.p2 === uid;
+  const bothDecided = m.p1 !== null && m.p2 !== null;
+  const mine = bothDecided && (m.p1 === uid || m.p2 === uid);
   if (mine) row.classList.add('match--mine');
 
   const names = document.createElement('div');
   names.className = 'match-names';
-  const n1 = document.createElement('span'); n1.textContent = nameOf(m.p1);
+  const n1 = document.createElement('span'); n1.textContent = opponentLabel(m, m.p1);
   const vs = document.createElement('span'); vs.className = 'vs'; vs.textContent = 'vs';
-  const n2 = document.createElement('span'); n2.textContent = nameOf(m.p2);
+  const n2 = document.createElement('span'); n2.textContent = opponentLabel(m, m.p2);
   if (m.winner && m.winner !== 'draw') {
     (m.winner === m.p1 ? n1 : n2).classList.add('winner');
   }
@@ -302,7 +348,13 @@ function renderMatch(m) {
   const action = document.createElement('div');
   action.className = 'match-action';
   if (m.winner) {
-    action.appendChild(makeTag(m.winner === 'draw' ? '引き分け' : `${nameOf(m.winner)}の勝ち`, 'tag--done'));
+    const isBye = tDoc.format === 'knockout' && m.round === 1 && (!m.p1 || !m.p2);
+    action.appendChild(makeTag(
+      m.winner === 'draw' ? '引き分け' : isBye ? '不戦勝で進出' : `${nameOf(m.winner)}の勝ち`,
+      'tag--done',
+    ));
+  } else if (!bothDecided) {
+    action.appendChild(makeTag('未定'));
   } else if (m.gameId) {
     const a = document.createElement('a');
     a.className = 'btn btn--sm ' + (mine ? 'btn--cyan' : 'btn--outline');

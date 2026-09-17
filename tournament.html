@@ -40,7 +40,7 @@
             <span>形式</span>
             <select id="format-select">
               <option value="league">リーグ戦(総当たり)</option>
-              <option value="knockout" disabled>トーナメント(準備中)</option>
+              <option value="knockout">トーナメント(勝ち抜き)</option>
             </select>
           </label>
           <button id="create-t-btn" class="btn btn--pear">大会を作成</button>
@@ -89,15 +89,17 @@
         </div>
       </div>
 
+      <div id="t-champion" class="result-msg hidden"></div>
+
       <div class="t-card" id="t-schedule-card">
-        <h3>対局表</h3>
+        <h3 id="t-schedule-title">対局表</h3>
         <div id="t-rounds"></div>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>リーグ戦: 勝ち3点・引き分け1点。対局が終わると自動で順位表に反映されます。</p>
+    <p id="t-footer-note">リーグ戦: 勝ち3点・引き分け1点。対局が終わると自動で順位表に反映されます。</p>
   </footer>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -105,7 +107,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js?v=5"></script>
   <script src="js/game-logic.js?v=5"></script>
-  <script src="js/tournament-logic.js?v=1"></script>
-  <script src="js/tournament.js?v=1"></script>
+  <script src="js/tournament-logic.js?v=2"></script>
+  <script src="js/tournament.js?v=2"></script>
 </body>
 </html>
