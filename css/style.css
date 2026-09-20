@@ -913,11 +913,11 @@ footer {
 /* ---------- CPU練習モード ---------- */
 
 .difficulty-grid {
-  grid-template-columns: repeat(3, 1fr);
-  max-width: 900px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  max-width: 1080px;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 480px) {
   .difficulty-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -928,9 +928,60 @@ footer {
   flex-direction: column;
   text-align: center;
   align-items: center;
+  padding: var(--space-md);
+}
+
+.difficulty-card .mono-label {
+  font-size: var(--text-md);
+  letter-spacing: 0.02em;
+  color: var(--color-accent-3-deep);
 }
 
 .difficulty-card .btn {
   margin-top: auto;
   width: 100%;
+}
+
+.learning-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  max-width: 720px;
+  margin: var(--space-sm) auto 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-paper-2);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.learning-toggle input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--color-accent-2);
+}
+
+.status-msg--hint {
+  background: color-mix(in oklch, var(--color-accent-2) 18%, var(--color-paper-2));
+  text-align: left;
+  line-height: 1.6;
+}
+
+/* 学習モードで盤面に表示するおすすめの一手(移動元/移動先) */
+.cell.hint-from,
+.cell.hint-to {
+  box-shadow: inset 0 0 0 3px var(--color-accent-2);
+  animation: hint-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 3px color-mix(in oklch, var(--color-accent-2) 60%, transparent); }
+  50% { box-shadow: inset 0 0 0 3px var(--color-accent-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.hint-from, .cell.hint-to {
+    animation: none;
+    box-shadow: inset 0 0 0 3px var(--color-accent-2);
+  }
 }

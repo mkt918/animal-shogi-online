@@ -1,13 +1,74 @@
 /**
  * CPU対戦の思考ルーチン(Firebase非依存の純粋ロジック)。
- * ミニマックス+アルファベータ枝刈り。強さは探索の深さで変える。
+ * ミニマックス+アルファベータ枝刈りに、検証済みの定跡(オープニングブック)を組み合わせる。
+ * 強さは★1〜★10の7段階(docs/strategy-guide.md の難易度マッピングに対応)。
  *
- *   'easy'   … 完全ランダム(たまにしか勝ち筋を読まない、初心者向け)
- *   'normal' … 2手先まで読む
- *   'hard'   … 4手先まで読む
+ * 定跡データは docs/strategy-guide.md 第3.4節に基づく「ゾウ冠」基本形の最初の5手
+ * (▲B2ひよこ →△同ゾウ →▲B3ゾウ →△A2きりん →▲A2同ゾウ)。
+ * 実際のゲームエンジンで全手が合法であることを検証済み(README参照)。
  */
 
-const DEPTH_BY_DIFFICULTY = { easy: 0, normal: 2, hard: 4 };
+/**
+ * 強さティア。stars は表示用(1〜10の★)。depth はミニマックスの探索深さ、
+ * book は「盤面の履歴が定跡と完全一致している間、先頭何手まで定跡を優先するか」。
+ * marginScale は「最善手とほぼ同点の候補からランダムに選ぶ」際の許容幅の倍率
+ * (0にすると常に単独の最善手を選ぶ = 最強ティアはブレない)。
+ */
+const TIERS = [
+  { id: 'easy', label: 'かんたん', stars: 1, depth: 0, book: 0, marginScale: 1 },
+  { id: 'normal', label: 'ふつう', stars: 3, depth: 2, book: 0, marginScale: 1 },
+  { id: 'hard', label: 'つよい', stars: 5, depth: 4, book: 0, marginScale: 1 },
+  { id: 'joseki-weak', label: '弱定石', stars: 6, depth: 4, book: 2, marginScale: 1 },
+  { id: 'joseki-mid', label: '中定石', stars: 7, depth: 6, book: 4, marginScale: 0.75 },
+  { id: 'joseki-strong', label: '強定石', stars: 8, depth: 6, book: 5, marginScale: 0.5 },
+  { id: 'master', label: '最強', stars: 10, depth: 8, book: 5, marginScale: 0 },
+];
+const MAX_STARS = 10;
+const STAR_MARGIN_UNIT = 20; // marginScale=1 のときの許容幅(評価値ポイント)
+
+const TIER_BY_ID = new Map(TIERS.map((t) => [t.id, t]));
+
+function getTier(tierId) {
+  return TIER_BY_ID.get(tierId) || TIER_BY_ID.get('hard');
+}
+
+/** ★の表示文字列を作る(例: stars=6 → "★★★★★★☆☆☆☆") */
+function starDisplay(stars) {
+  return '★'.repeat(stars) + '☆'.repeat(MAX_STARS - stars);
+}
+
+/**
+ * 検証済みオープニングブック(ゾウ冠基本形、先頭5手)。
+ * 座標は本プロジェクトの内部表現(row0=後手最奥 / row3=先手最奥、col: A=0,B=1,C=2)。
+ */
+const OPENING_BOOK = [
+  { label: '▲B2ひよこ', explanation: 'ヒヨコで相手のヒヨコを取りに行く、素直で穏やかな初手。「ゾウ冠」定跡へ進む。', move: { kind: 'move', from: { row: 2, col: 1 }, to: { row: 1, col: 1 } } },
+  { label: '△同ゾウ', explanation: 'ヒヨコを同じ場所のゾウで取り返す。完全解析上、後手のこの応手が最善とされる。', move: { kind: 'move', from: { row: 0, col: 2 }, to: { row: 1, col: 1 } } },
+  { label: '▲B3ゾウ', explanation: '自分のゾウを前進させ、ライオンの守りを固める「ゾウ冠」の形を作る。', move: { kind: 'move', from: { row: 3, col: 0 }, to: { row: 2, col: 1 } } },
+  { label: '△A2きりん', explanation: 'キリンを繰り出して盤面をコントロールする。', move: { kind: 'move', from: { row: 0, col: 0 }, to: { row: 1, col: 0 } } },
+  { label: '▲A2同ゾウ', explanation: 'ゾウでキリンを取り返す。ここまでが検証済みの定跡区間。', move: { kind: 'move', from: { row: 2, col: 1 }, to: { row: 1, col: 0 } } },
+];
+
+function movesEqual(a, b) {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'move') {
+    return a.from.row === b.from.row && a.from.col === b.from.col && a.to.row === b.to.row && a.to.col === b.to.col;
+  }
+  return a.pieceType === b.pieceType && a.to.row === b.to.row && a.to.col === b.to.col;
+}
+
+/**
+ * これまでの指し手履歴(moveHistory)が定跡の先頭と完全一致している場合、次の定跡手を返す。
+ * 一致しなくなった時点(相手が定跡を外れた/自分がすでに定跡区間を終えた)は null。
+ */
+function bookMoveForHistory(moveHistory) {
+  const ply = moveHistory.length;
+  if (ply >= OPENING_BOOK.length) return null;
+  for (let i = 0; i < ply; i++) {
+    if (!movesEqual(moveHistory[i], OPENING_BOOK[i].move)) return null;
+  }
+  return OPENING_BOOK[ply];
+}
 
 // 駒の価値。ライオンは「捕られたら即負け」なので別枠で終局判定するが、
 // 評価関数の中でも危険度を伝えるためかなり大きい値にしておく。
@@ -126,35 +187,50 @@ function minimax(GameLogic, state, depth, alpha, beta, perspective) {
 
 /**
  * CPUの一手を選ぶ。state.turn 側がCPUという前提。
- * difficulty: 'easy' | 'normal' | 'hard'
+ * tierId: TIERS の id('easy' | 'normal' | 'hard' | 'joseki-weak' | 'joseki-mid' | 'joseki-strong' | 'master')
+ * moveHistory: これまでの対局で実際に指された手の配列(定跡判定に使う。省略時は定跡なしとして扱う)。
  */
-function chooseMove(GameLogic, state, difficulty) {
+function chooseMove(GameLogic, state, tierId, moveHistory) {
   const moves = generateMoves(GameLogic, state);
   if (moves.length === 0) return null;
 
-  if (difficulty === 'easy') {
+  const tier = getTier(tierId);
+
+  if (tier.book > 0 && moveHistory) {
+    const book = bookMoveForHistory(moveHistory);
+    if (book) return book.move;
+  }
+
+  if (tier.depth === 0) {
     return moves[Math.floor(Math.random() * moves.length)];
   }
 
   const perspective = state.turn;
-  const depth = DEPTH_BY_DIFFICULTY[difficulty] ?? DEPTH_BY_DIFFICULTY.normal;
-
   let bestScore = -Infinity;
   let scored = [];
   for (const move of moves) {
     const next = applyMove(GameLogic, state, move);
-    const score = minimax(GameLogic, next, depth - 1, -Infinity, Infinity, perspective);
+    const score = minimax(GameLogic, next, tier.depth - 1, -Infinity, Infinity, perspective);
     scored.push({ move, score });
     if (score > bestScore) bestScore = score;
   }
 
   // 最善手とほぼ同点の候補からランダムに選び、毎回同じ棋譜にならないようにする
-  const margin = Math.abs(bestScore) < WIN_SCORE ? 20 : 0;
+  // (marginScale=0 のティアは常に単独の最善手を選ぶ)
+  const margin = Math.abs(bestScore) < WIN_SCORE ? STAR_MARGIN_UNIT * tier.marginScale : 0;
   const topChoices = scored.filter((s) => s.score >= bestScore - margin);
   return topChoices[Math.floor(Math.random() * topChoices.length)].move;
 }
 
-const CpuAI = { chooseMove, generateMoves, evaluate };
+const CpuAI = {
+  chooseMove,
+  generateMoves,
+  evaluate,
+  TIERS,
+  starDisplay,
+  bookMoveForHistory,
+  OPENING_BOOK,
+};
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CpuAI;

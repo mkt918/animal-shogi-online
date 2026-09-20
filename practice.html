@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/tokens.css" />
-<link rel="stylesheet" href="css/style.css?v=5" />
+<link rel="stylesheet" href="css/style.css?v=6" />
 </head>
 <body>
   <header class="masthead">
@@ -25,30 +25,44 @@
   <main>
     <!-- 難易度選択画面 -->
     <section id="select-screen" class="screen">
-      <p class="status-msg">CPUの強さを選んでください。先手はあなた、後手がCPUです。</p>
+      <p class="status-msg">
+        CPUの強さを☆1〜☆10の7段階から選んでください。先手はあなた、後手がCPUです。<br>
+        かんたん → ふつう → つよい → 弱定石 → 中定石 → 強定石 → 最強、の順にステップアップしていきます。
+      </p>
 
-      <div class="lobby-grid difficulty-grid">
-        <div class="lobby-card difficulty-card">
-          <span class="mono-label">腕試し</span>
-          <h2>かんたん</h2>
-          <p class="lobby-card-copy">ランダムに指すCPU。ルールに慣れたい人向け。</p>
-          <button class="btn btn--pear difficulty-btn" data-difficulty="easy">かんたんで練習</button>
-        </div>
+      <label class="learning-toggle">
+        <input type="checkbox" id="learning-mode-toggle" />
+        <span>学習モード(どの難易度でも、定跡の手順とヒントを表示する)</span>
+      </label>
 
-        <div class="lobby-card difficulty-card">
-          <span class="mono-label">ちょうどいい</span>
-          <h2>ふつう</h2>
-          <p class="lobby-card-copy">2手先まで読んで指します。</p>
-          <button class="btn btn--cyan difficulty-btn" data-difficulty="normal">ふつうで練習</button>
-        </div>
-
-        <div class="lobby-card difficulty-card">
-          <span class="mono-label">本気で</span>
-          <h2>つよい</h2>
-          <p class="lobby-card-copy">4手先まで読む本気モード。</p>
-          <button class="btn btn--coral difficulty-btn" data-difficulty="hard">つよいで練習</button>
-        </div>
+      <div class="lobby-grid difficulty-grid" id="difficulty-grid">
+        <!-- js/practice.js が CpuAI.TIERS から自動生成する -->
       </div>
+
+      <details class="rules">
+        <summary>あそびかた・ルール</summary>
+        <ul>
+          <li>3×4の盤で、自分のライオンを守りながら相手のライオンをつかまえます。</li>
+          <li>駒の面にある点が、その駒の進める方向です。自分の駒にカーソルを載せる(またはタップ)と行けるマスが光ります。</li>
+          <li>ライオン🦁は全方向、ゾウ🐘は斜め、キリン🦒はたて・よこ、ヒヨコ🐤は前に1マスずつ動けます。</li>
+          <li>取った駒は持ち駒になり、自分の番に空いているマスへ打てます。</li>
+          <li>ヒヨコが相手の一番奥の列まで進むとニワトリ🐔になり、たて・よこ・前ななめに動けます。</li>
+          <li><strong>キャッチ:</strong> 相手のライオンを取ると勝ち。</li>
+          <li><strong>トライ:</strong> 自分のライオンが相手の一番奥の列に入り、次の相手の番で取られなければ勝ち。取れる位置に入ると取られて負けです。</li>
+          <li>同じ局面が3回くり返されると引き分け(千日手)です。</li>
+        </ul>
+      </details>
+
+      <details class="rules">
+        <summary>定跡ってなに?(学習モードで見られること)</summary>
+        <p class="lobby-card-copy">
+          「定跡」は、昔からの研究で「こう指せばうまくいく」とわかっている手順のことです。
+          このCPUには、実際に完全解析(コンピュータによる全局面の勝敗判定)で確認されている
+          序盤5手の定跡(通称「ゾウ冠」の基本形)が組み込まれています。「弱定石」以上の
+          CPUはこの手順を序盤で使いますし、学習モードをONにすると、あなたの番のときにも
+          「次にどう指すとよいか」のヒントが表示されます。
+        </p>
+      </details>
     </section>
 
     <!-- 対局画面 -->
@@ -61,6 +75,7 @@
       </div>
 
       <p id="turn-indicator" class="status-msg"></p>
+      <div id="joseki-hint" class="status-msg status-msg--hint hidden"></div>
       <div id="result-msg" class="result-msg hidden"></div>
       <div class="game-actions">
         <button id="retry-btn" class="btn btn--pear hidden">もう一度</button>
@@ -87,7 +102,7 @@
   </footer>
 
   <script src="js/game-logic.js?v=5"></script>
-  <script src="js/cpu-ai.js?v=1"></script>
-  <script src="js/practice.js?v=1"></script>
+  <script src="js/cpu-ai.js?v=2"></script>
+  <script src="js/practice.js?v=2"></script>
 </body>
 </html>
