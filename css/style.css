@@ -349,6 +349,13 @@ main {
   --btn-cast: oklch(60% 0.18 235 / 0.35);
 }
 
+.btn--coral {
+  --btn-face: var(--color-accent-3);
+  --btn-edge: var(--color-accent-3-deep);
+  --btn-ink: var(--color-accent-3-ink);
+  --btn-cast: oklch(54% 0.20 18 / 0.4);
+}
+
 .btn--soft {
   background: var(--color-paper-3);
   color: var(--color-ink);
@@ -373,6 +380,11 @@ main {
 .btn--outline.btn--cyan {
   color: var(--color-accent-2-deep);
   box-shadow: inset 0 0 0 1.5px var(--color-accent-2);
+}
+
+.btn--outline.btn--coral {
+  color: var(--color-accent-3-deep);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent-3);
 }
 
 .btn--outline:hover:not(:disabled) {
