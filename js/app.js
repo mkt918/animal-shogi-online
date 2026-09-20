@@ -18,6 +18,13 @@ let currentGameDoc = null;
 
 const el = (id) => document.getElementById(id);
 
+// Firestore の TTL ポリシー(READMEの「古いドキュメントの自動削除」参照)が参照する有効期限。
+// この日時を過ぎたドキュメントは自動削除され、4桁コードの空きが保たれる。
+const GAME_TTL_DAYS = 7;
+function expiresAfterDays(days) {
+  return firebase.firestore.Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
 // Firestoreはネストした配列(2次元配列)を保存できないため、board を保存用にフラット化する。
 function serializeState(state) {
   const flatBoard = [];
@@ -98,6 +105,7 @@ async function createRoom() {
           players: { sente: uid, gote: null },
           status: 'waiting',
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          expiresAt: expiresAfterDays(GAME_TTL_DAYS),
         });
         code = candidate;
       });
@@ -496,6 +504,7 @@ async function rematch() {
       state: serializeState(GameLogic.createInitialState()),
       players: { sente: players.gote, gote: players.sente },
       status: 'playing',
+      expiresAt: expiresAfterDays(GAME_TTL_DAYS), // 再戦するたびに有効期限を延ばす
     });
   } catch (e) {
     console.error(e);

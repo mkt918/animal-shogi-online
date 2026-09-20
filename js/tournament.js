@@ -6,6 +6,13 @@ let tDoc = null;
 let unsubscribeT = null;
 
 const el = (id) => document.getElementById(id);
+
+// Firestore の TTL ポリシーが参照する有効期限(README「古いドキュメントの自動削除」参照)
+const TOURNAMENT_TTL_DAYS = 30;
+const GAME_TTL_DAYS = 7;
+function expiresAfterDays(days) {
+  return firebase.firestore.Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
+}
 const NAME_KEY = 'animal-shogi-player-name';
 
 function showError(msg) {
@@ -83,6 +90,7 @@ async function createTournament() {
           playerUids: [uid], // セキュリティルールで「参加者本人か」を判定するための一覧
           matches: [],
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          expiresAt: expiresAfterDays(TOURNAMENT_TTL_DAYS),
         });
         code = candidate;
       });
@@ -196,6 +204,7 @@ async function startMatch(match) {
           matchId: match.id,
           expectedGote: opponent,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          expiresAt: expiresAfterDays(GAME_TTL_DAYS),
         });
         tx.update(tRef, { matches });
         gameCode = candidate;
