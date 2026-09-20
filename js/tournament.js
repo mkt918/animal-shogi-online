@@ -65,16 +65,29 @@ async function createTournament() {
   const name = el('host-name').value.trim();
   if (!name) { showError('名前を入力してください。'); return; }
   rememberName(name);
-  const code = generateCode();
+  const format = el('format-select').value;
   try {
-    await db.collection('tournaments').doc(code).set({
-      format: el('format-select').value,
-      hostUid: uid,
-      status: 'lobby',
-      players: [{ uid, name }],
-      matches: [],
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    // 4桁コードは衝突しうるので、存在しないコードを引くまで再試行する(既存の大会を上書きしない)
+    let code = null;
+    for (let attempt = 0; attempt < 10 && !code; attempt++) {
+      const candidate = generateCode();
+      const ref = db.collection('tournaments').doc(candidate);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists) return;
+        tx.set(ref, {
+          format,
+          hostUid: uid,
+          status: 'lobby',
+          players: [{ uid, name }],
+          playerUids: [uid], // セキュリティルールで「参加者本人か」を判定するための一覧
+          matches: [],
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        code = candidate;
+      });
+    }
+    if (!code) throw new Error('空いている大会コードが見つかりませんでした。もう一度お試しください。');
     openTournament(code);
   } catch (e) {
     showError('大会の作成に失敗しました: ' + e.message);
@@ -96,7 +109,10 @@ async function joinTournament(code, name) {
       if (t.players.some((p) => p.uid === uid)) return; // 再入室
       if (t.status !== 'lobby') throw new Error('この大会はすでに始まっています。');
       if (t.players.some((p) => p.name === name)) throw new Error('同じ名前の参加者がいます。別の名前にしてください。');
-      tx.update(ref, { players: [...t.players, { uid, name }] });
+      tx.update(ref, {
+        players: [...t.players, { uid, name }],
+        playerUids: [...(t.playerUids || t.players.map((p) => p.uid)), uid],
+      });
     });
     openTournament(code);
   } catch (e) {
@@ -155,28 +171,37 @@ async function startTournament() {
 async function startMatch(match) {
   if (!match.p1 || !match.p2) return; // トーナメントで対戦相手がまだ決まっていない
   const opponent = match.p1 === uid ? match.p2 : match.p1;
-  const gameCode = generateCode();
   const tRef = db.collection('tournaments').doc(tCode);
-  const gRef = db.collection('games').doc(gameCode);
   try {
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(tRef);
-      const t = snap.data();
-      const matches = t.matches.map((m) => ({ ...m }));
-      const m = matches.find((x) => x.id === match.id);
-      if (m.gameId) throw new Error('already-started:' + m.gameId);
-      m.gameId = gameCode;
-      tx.set(gRef, {
-        state: serializeState(GameLogic.createInitialState()),
-        players: { sente: uid, gote: null },
-        status: 'waiting',
-        tournamentId: tCode,
-        matchId: match.id,
-        expectedGote: opponent,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    let gameCode = null;
+    // 部屋コードが既存の対局と衝突したら別のコードで作り直す(既存の部屋を上書きしない)
+    for (let attempt = 0; attempt < 10 && !gameCode; attempt++) {
+      const candidate = generateCode();
+      const gRef = db.collection('games').doc(candidate);
+      await db.runTransaction(async (tx) => {
+        const [tSnap, gSnap] = await Promise.all([tx.get(tRef), tx.get(gRef)]);
+        if (!tSnap.exists) throw new Error('大会が見つかりません。');
+        if (gSnap.exists) return; // コード衝突 → 次の候補へ
+        const t = tSnap.data();
+        const matches = t.matches.map((m) => ({ ...m }));
+        const m = matches.find((x) => x.id === match.id);
+        if (!m) throw new Error('対局が見つかりません。');
+        if (m.gameId) throw new Error('already-started:' + m.gameId);
+        m.gameId = candidate;
+        tx.set(gRef, {
+          state: serializeState(GameLogic.createInitialState()),
+          players: { sente: uid, gote: null },
+          status: 'waiting',
+          tournamentId: tCode,
+          matchId: match.id,
+          expectedGote: opponent,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.update(tRef, { matches });
+        gameCode = candidate;
       });
-      tx.update(tRef, { matches });
-    });
+    }
+    if (!gameCode) throw new Error('空いている部屋コードが見つかりませんでした。もう一度お試しください。');
     location.href = `index.html?room=${gameCode}`;
   } catch (e) {
     if (String(e.message).startsWith('already-started:')) {
@@ -199,13 +224,16 @@ function render() {
   el('t-code-display').textContent = tCode;
   el('t-player-count').textContent = `${t.players.length}人`;
 
+  const isHost = t.hostUid === uid;
+  const isMember = t.players.some((p) => p.uid === uid);
+
   const badge = el('t-status-badge');
   badge.className = 'status-badge status-badge--' + t.status;
-  badge.textContent = { lobby: '参加受付中', running: '対局中', finished: '終了' }[t.status] || t.status;
+  const statusLabel = { lobby: '参加受付中', running: '対局中', finished: '終了' }[t.status] || t.status;
+  badge.textContent = isMember ? statusLabel : `${statusLabel}(観戦中)`;
 
-  const isHost = t.hostUid === uid;
   el('t-host-controls').classList.toggle('hidden', !(isHost && t.status === 'lobby'));
-  el('t-wait-msg').classList.toggle('hidden', !(!isHost && t.status === 'lobby'));
+  el('t-wait-msg').classList.toggle('hidden', !(isMember && !isHost && t.status === 'lobby'));
 
   // 参加者
   const list = el('t-players');

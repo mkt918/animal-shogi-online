@@ -1,25 +1,72 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // 変更前後で同じ値か(フィールドが元から無い場合は「無いまま」を要求)
+    function unchanged(field) {
+      return (field in resource.data)
+        ? ((field in request.resource.data) && request.resource.data[field] == resource.data[field])
+        : !(field in request.resource.data);
+    }
+
     match /games/{roomCode} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      function isPlayer() {
+        return resource.data.players.sente == request.auth.uid
+          || resource.data.players.gote == request.auth.uid;
+      }
+      // 空いている後手席に自分が座る更新か。大会の対局(expectedGote あり)は指定された相手だけ。
+      function takesGoteSeat() {
+        return resource.data.players.gote == null
+          && request.resource.data.players.gote == request.auth.uid
+          && request.resource.data.players.sente == resource.data.players.sente
+          && (!('expectedGote' in resource.data) || resource.data.expectedGote == request.auth.uid);
+      }
+
+      allow read: if signedIn();
+      allow create: if signedIn()
         && request.resource.data.players.sente == request.auth.uid
         && request.resource.data.players.gote == null;
-      allow update: if request.auth != null
-        && (resource.data.players.sente == request.auth.uid
-            || resource.data.players.gote == request.auth.uid
-            || (resource.data.players.gote == null
-                && request.resource.data.players.gote == request.auth.uid));
+      // 大会との紐づけ(tournamentId / matchId / expectedGote)は作成後に書き換えられない
+      allow update: if signedIn()
+        && unchanged('tournamentId') && unchanged('matchId') && unchanged('expectedGote')
+        && (isPlayer() || takesGoteSeat());
       allow delete: if false;
     }
 
-    // 大会(リーグ戦/トーナメント)。カジュアル利用を想定し、参加・結果反映はログイン済みなら可。
+    // 大会(リーグ戦/トーナメント)
     match /tournaments/{code} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.hostUid == request.auth.uid;
-      allow update: if request.auth != null;
+      function isHost() {
+        return resource.data.hostUid == request.auth.uid;
+      }
+      function isMember() {
+        return ('playerUids' in resource.data) && request.auth.uid in resource.data.playerUids;
+      }
+      // 受付中の大会に自分だけを追加する更新か(参加)。他の項目は触れない。
+      function joinsLobby() {
+        return resource.data.status == 'lobby'
+          && request.resource.data.status == 'lobby'
+          && ('playerUids' in resource.data)
+          && request.resource.data.playerUids.size() == resource.data.playerUids.size() + 1
+          && request.resource.data.playerUids.hasAll(resource.data.playerUids)
+          && request.auth.uid in request.resource.data.playerUids
+          && !(request.auth.uid in resource.data.playerUids)
+          && request.resource.data.players.size() == resource.data.players.size() + 1
+          && request.resource.data.matches == resource.data.matches;
+      }
+
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.playerUids == [request.auth.uid];
+      // 主催者の変更は不可。更新できるのは主催者・参加者、または受付中の大会への参加のみ
+      allow update: if signedIn()
+        && unchanged('hostUid')
+        && unchanged('format')
+        && (isHost() || isMember() || joinsLobby());
       allow delete: if false;
     }
   }

@@ -199,9 +199,16 @@ function applyEndConditions(next, mover) {
  * 盤上の駒を動かす。プロモーション判定込み。state は変更せず新しい state を返す。
  */
 function movePiece(state, from, to) {
+  if (!inBounds(from.row, from.col) || !inBounds(to.row, to.col)) throw new Error('盤の外です');
+  const source = state.board[from.row][from.col];
+  if (!source) throw new Error('移動元に駒がありません');
+  if (source.owner !== state.turn) throw new Error('手番ではない側の駒です');
+  if (!getPieceDestinations(state, from.row, from.col).some((d) => d.row === to.row && d.col === to.col)) {
+    throw new Error('その駒はそのマスへ動けません');
+  }
+
   const next = cloneState(state);
   const piece = next.board[from.row][from.col];
-  if (!piece) throw new Error('移動元に駒がありません');
 
   const captured = next.board[to.row][to.col];
   if (captured) {
@@ -232,6 +239,7 @@ function movePiece(state, from, to) {
  * 持ち駒を打つ。
  */
 function dropPiece(state, pieceType, to) {
+  if (!inBounds(to.row, to.col)) throw new Error('盤の外です');
   const next = cloneState(state);
   const owner = next.turn;
   const handIndex = next.hands[owner].indexOf(pieceType);
@@ -277,5 +285,5 @@ const GameLogic = {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = GameLogic;
 } else {
-  window.GameLogic = GameLogic;
+  globalThis.GameLogic = GameLogic; // ブラウザ本体でも Web Worker でも同じ手順で読み込めるようにする
 }

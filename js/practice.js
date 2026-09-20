@@ -33,8 +33,66 @@ let selected = null; // { kind: 'board', row, col } | { kind: 'hand', index }
 let cpuThinking = false;
 let moveHistory = []; // これまでの対局で実際に指された手(定跡ブックの判定・学習ヒントに使う)
 let learningMode = false;
+// 対局の世代番号。「もう一度」「難易度を変える」で増やし、古い対局のCPU思考結果が
+// 新しい盤面に適用されるのを防ぐ。
+let gameGen = 0;
 
 const el = (id) => document.getElementById(id);
+
+// --- CPU思考の実行(Web Worker が使えればそちらで、使えなければ同期実行にフォールバック) ---
+let cpuWorker = null;
+let workerRequestSeq = 0;
+const workerPending = new Map(); // requestId → resolve
+
+function getCpuWorker() {
+  if (cpuWorker !== null) return cpuWorker || null;
+  try {
+    cpuWorker = new Worker('js/cpu-worker.js');
+    cpuWorker.onmessage = (event) => {
+      const { requestId, move, error } = event.data;
+      const resolve = workerPending.get(requestId);
+      if (!resolve) return;
+      workerPending.delete(requestId);
+      resolve(error ? { error } : { move });
+    };
+    cpuWorker.onerror = (e) => {
+      console.error('CPU worker error', e);
+      // ワーカーが壊れたら以降は同期実行に切り替える
+      workerPending.forEach((resolve) => resolve({ error: 'worker-failed' }));
+      workerPending.clear();
+      cpuWorker.terminate();
+      cpuWorker = false;
+    };
+  } catch (e) {
+    console.warn('Web Worker を起動できないため同期実行します', e);
+    cpuWorker = false;
+  }
+  return cpuWorker || null;
+}
+
+/** CPUの一手を非同期で求める。学習モード中は難易度に関係なく定跡区間なら定跡を優先する。 */
+function requestCpuMove(currentState, tierId, history) {
+  if (learningMode) {
+    const book = CpuAI.bookMoveForHistory(history);
+    if (book) return Promise.resolve(book.move);
+  }
+  const worker = getCpuWorker();
+  if (!worker) {
+    return Promise.resolve(CpuAI.chooseMove(GameLogic, currentState, tierId, history));
+  }
+  const requestId = ++workerRequestSeq;
+  return new Promise((resolve) => {
+    workerPending.set(requestId, (result) => {
+      if (result.error) {
+        // ワーカー側で失敗したら同期実行で救済する
+        resolve(CpuAI.chooseMove(GameLogic, currentState, tierId, history));
+      } else {
+        resolve(result.move);
+      }
+    });
+    worker.postMessage({ requestId, state: currentState, tierId, moveHistory: history });
+  });
+}
 
 function buildDifficultyGrid() {
   const grid = el('difficulty-grid');
@@ -73,6 +131,7 @@ function tierLabel(tierId) {
 }
 
 function startGame(diff) {
+  gameGen += 1; // 進行中のCPU思考があれば、その結果は捨てる
   difficulty = diff;
   state = GameLogic.createInitialState();
   selected = null;
@@ -301,45 +360,48 @@ function onHandPieceClick(index) {
   render();
 }
 
-/**
- * CPU(gote)の一手を選ぶ。学習モード中は難易度に関係なく定跡区間なら定跡を優先し、
- * ゾウ冠の手順をプレイヤーに見せる(通常は選んだ難易度ティアのbook設定に従う)。
- */
-function pickCpuMove() {
-  if (learningMode) {
-    const book = CpuAI.bookMoveForHistory(moveHistory);
-    if (book) return book.move;
-  }
-  return CpuAI.chooseMove(GameLogic, state, difficulty, moveHistory);
-}
-
 /** state.turn が gote(CPU)になったら、少し「考える」演出を挟んでCPUに指させる */
-function maybeTriggerCpuTurn() {
+async function maybeTriggerCpuTurn() {
   if (!state || state.winner || state.turn !== 'gote') return;
+  const gen = gameGen;
   cpuThinking = true;
   render();
   const startedAt = Date.now();
-  // メインスレッドを長時間ブロックしないよう、思考自体は次のイベントループで実行する
+
+  let move = null;
+  try {
+    move = await requestCpuMove(state, difficulty, moveHistory.slice());
+  } catch (e) {
+    console.error('CPUの思考に失敗', e);
+  }
+  // 思考中に「もう一度」「難易度を変える」が押されていたら、この結果は古い対局のものなので捨てる
+  if (gen !== gameGen) return;
+
+  const elapsed = Date.now() - startedAt;
+  const wait = Math.max(0, CPU_THINK_MIN_MS - elapsed);
   setTimeout(() => {
-    const move = pickCpuMove();
-    const elapsed = Date.now() - startedAt;
-    const wait = Math.max(0, CPU_THINK_MIN_MS - elapsed);
-    setTimeout(() => {
-      if (move) {
-        moveHistory.push(move);
-        state = move.kind === 'move'
+    if (gen !== gameGen || !state) return;
+    if (move) {
+      try {
+        const next = move.kind === 'move'
           ? GameLogic.movePiece(state, move.from, move.to)
           : GameLogic.dropPiece(state, move.pieceType, move.to);
+        moveHistory.push(move);
+        state = next;
+      } catch (e) {
+        // movePiece/dropPiece が反則と判定した場合は盤面を変えない(合法性検証のセーフティ)
+        console.error('CPUの手が反則と判定されました', e, move);
       }
-      cpuThinking = false;
-      render();
-    }, wait);
-  }, 30);
+    }
+    cpuThinking = false;
+    render();
+  }, wait);
 }
 
 function setupEvents() {
   buildDifficultyGrid();
   el('change-difficulty-btn').addEventListener('click', () => {
+    gameGen += 1; // 進行中のCPU思考があれば捨てる
     state = null;
     selected = null;
     cpuThinking = false;

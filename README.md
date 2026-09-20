@@ -28,6 +28,18 @@ Firebase(Firestore + Anonymous Auth)を使ったリアルタイム対戦版ど�
 Firebaseコンソールの Firestore →「ルール」タブに [firestore.rules](firestore.rules) の内容を貼り付けて公開してください。
 (Firebase CLIを使う場合は `firebase deploy --only firestore:rules`)
 
+ルールの要点:
+- `games`: 更新できるのは対局の当事者のみ。空いている後手席に座れるのは、大会の対局なら指定された相手だけ。大会との紐づけ(`tournamentId`/`matchId`/`expectedGote`)は後から書き換え不可
+- `tournaments`: 更新できるのは主催者と参加者(`playerUids`)のみ。受付中の大会への「自分だけを追加する」更新は誰でも可。`hostUid`/`format` は変更不可
+- 手の合法性まではルールで検証していません(クライアント側で検証)。厳密な不正対策が必要ならCloud Functionsが必要です
+
+### 3b. 古いドキュメントの自動削除(TTL、推奨)
+
+部屋コード・大会コードは4桁(1万通り)で、ドキュメントは削除されないため、放置すると新規作成時の
+コード衝突確率が上がります(衝突時はアプリ側で別コードを再試行しますが、空きが減るほど失敗しやすくなります)。
+Firebaseコンソールの Firestore →「TTLポリシー」で、`games` と `tournaments` の両コレクションに
+`createdAt` フィールドを対象としたTTL(例: 7日)を設定してください。ルール変更は不要です。
+
 ### 4. GitHubで公開(GitHub Pages)
 
 ```bash

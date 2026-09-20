@@ -71,10 +71,12 @@ function computeStandings(players, matches) {
 
   const sorted = [...rows.values()].sort((x, y) =>
     y.points - x.points || y.win - x.win || headToHead(x, y) || x.name.localeCompare(y.name, 'ja'));
+  // 順位番号は並び順と同じ基準(勝ち点→勝ち数→直接対決)で分ける。
+  // 直接対決で差がついた2人は同順位にしない。
   let rank = 0;
   let prev = null;
   sorted.forEach((row, i) => {
-    if (!prev || prev.points !== row.points || prev.win !== row.win) rank = i + 1;
+    if (!prev || prev.points !== row.points || prev.win !== row.win || headToHead(prev, row) !== 0) rank = i + 1;
     row.rank = rank;
     prev = row;
   });

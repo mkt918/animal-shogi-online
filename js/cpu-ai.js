@@ -123,10 +123,12 @@ function applyMove(GameLogic, state, move) {
  * 盤面を perspective(手番に関係なく固定した視点)から評価する。
  * 駒の価値の合計(盤上+持ち駒)に、ヒヨコの前進度など簡単な位置評価を足す。
  */
-function evaluate(GameLogic, state, perspective) {
+function evaluate(GameLogic, state, perspective, depthLeft = 0) {
   if (state.winner) {
     if (state.winner === 'draw') return 0;
-    return state.winner === perspective ? WIN_SCORE : -WIN_SCORE;
+    // 残り深さが多い(=早く決着した)勝ちほど高く評価し、勝てる局面で手待ちして
+    // 千日手に落とすのを防ぐ。負けは逆に遅いほどマシとする。
+    return state.winner === perspective ? WIN_SCORE + depthLeft : -WIN_SCORE - depthLeft;
   }
 
   let score = 0;
@@ -158,7 +160,7 @@ function evaluate(GameLogic, state, perspective) {
 
 function minimax(GameLogic, state, depth, alpha, beta, perspective) {
   if (state.winner || depth === 0) {
-    return evaluate(GameLogic, state, perspective);
+    return evaluate(GameLogic, state, perspective, depth);
   }
 
   const moves = generateMoves(GameLogic, state);
@@ -235,5 +237,5 @@ const CpuAI = {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CpuAI;
 } else {
-  window.CpuAI = CpuAI;
+  globalThis.CpuAI = CpuAI; // ブラウザ本体でも Web Worker でも同じ手順で読み込めるようにする
 }

@@ -83,15 +83,26 @@ function generateRoomCode() {
 
 async function createRoom() {
   el('lobby-error').textContent = '';
-  const code = generateRoomCode();
   const state = GameLogic.createInitialState();
   try {
-    await db.collection('games').doc(code).set({
-      state: serializeState(state),
-      players: { sente: uid, gote: null },
-      status: 'waiting',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    // 4桁コードは衝突しうるので、存在しないコードを引くまで再試行する(既存の部屋を上書きしない)
+    let code = null;
+    for (let attempt = 0; attempt < 10 && !code; attempt++) {
+      const candidate = generateRoomCode();
+      const ref = db.collection('games').doc(candidate);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists) return;
+        tx.set(ref, {
+          state: serializeState(state),
+          players: { sente: uid, gote: null },
+          status: 'waiting',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        code = candidate;
+      });
+    }
+    if (!code) throw new Error('空いている部屋コードが見つかりませんでした。もう一度お試しください。');
     enterRoom(code);
   } catch (e) {
     el('lobby-error').textContent = '部屋の作成に失敗しました: ' + e.message;
@@ -150,7 +161,9 @@ function enterRoom(code) {
     maybeReportTournamentResult();
   }, (err) => {
     console.error(err);
-    el('lobby-error').textContent = '接続エラー: ' + err.message;
+    // 対局画面ではロビーのエラー欄は見えないので、手番表示の位置に出す
+    el('turn-indicator').textContent = '接続エラー: ' + err.message + '(ページを再読み込みしてください)';
+    el('turn-indicator').classList.remove('status-msg--mine');
   });
 }
 
@@ -179,12 +192,14 @@ function leaveRoom() {
 // 当事者(先手/後手)のどちらかが1回だけ書けばよいので、トランザクションで二重書き込みを防ぐ。
 // リーグ戦/トーナメントの分岐(勝者の自動進出・引き分け時の再戦扱い)は TournamentLogic.reportResult に一本化している。
 let reportedRoom = null;
+let reportRetryTimer = null;
 async function maybeReportTournamentResult() {
   const d = currentGameDoc;
   if (!d || !d.tournamentId || !d.matchId || !d.state.winner) return;
   if (myRole !== 'sente' && myRole !== 'gote') return;
   if (reportedRoom === roomCode) return;
   reportedRoom = roomCode;
+  const reportingRoom = roomCode;
   const winnerUid = d.state.winner === 'draw' ? 'draw' : d.players[d.state.winner];
   const ref = db.collection('tournaments').doc(d.tournamentId);
   try {
@@ -194,12 +209,20 @@ async function maybeReportTournamentResult() {
       const t = snap.data();
       const existing = (t.matches || []).find((x) => x.id === d.matchId);
       if (!existing || existing.winner) return; // 相手側がすでに書き込み済み
+      // 引き分け→再戦のあとで古い対局の画面を開き直しても、いま紐づいている部屋以外は報告しない
+      // (再戦中の gameId を null に戻して対局表から切り離してしまう事故を防ぐ)
+      if (existing.gameId && existing.gameId !== reportingRoom) return;
       const { matches, finished } = TournamentLogic.reportResult(t.matches || [], d.matchId, winnerUid, t.format);
       tx.update(ref, { matches, status: finished ? 'finished' : t.status });
     });
   } catch (e) {
     console.error('大会への結果反映に失敗', e);
     reportedRoom = null;
+    // 終局後はスナップショットが再び来ないので、通信失敗時は自分で再試行する
+    clearTimeout(reportRetryTimer);
+    reportRetryTimer = setTimeout(() => {
+      if (roomCode === reportingRoom) maybeReportTournamentResult();
+    }, 3000);
   }
 }
 
@@ -444,8 +467,8 @@ function onCellClick(row, col) {
 
 function onHandPieceClick(owner, index, pieceType) {
   if (!currentGameDoc) return;
-  const { state } = currentGameDoc;
-  if (state.winner || myRole !== state.turn || owner !== myRole) return;
+  const { state, status } = currentGameDoc;
+  if (state.winner || status !== 'playing' || myRole !== state.turn || owner !== myRole) return;
 
   if (selected && selected.kind === 'hand' && selected.index === index) {
     selected = null;
