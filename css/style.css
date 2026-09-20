@@ -897,3 +897,28 @@ footer {
   font-size: var(--text-xs);
   color: color-mix(in oklch, var(--color-ink) 50%, transparent);
 }
+
+/* ---------- CPU練習モード ---------- */
+
+.difficulty-grid {
+  grid-template-columns: repeat(3, 1fr);
+  max-width: 900px;
+}
+
+@media (max-width: 860px) {
+  .difficulty-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.difficulty-card {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+}
+
+.difficulty-card .btn {
+  margin-top: auto;
+  width: 100%;
+}

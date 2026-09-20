@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>どうぶつしょうぎ CPU練習</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/style.css?v=5" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="wordmark">
+      <span class="character-mark" aria-hidden="true">🤖</span>
+      <div>
+        <h1>どうぶつしょうぎ</h1>
+        <p class="wordmark-sub">CPU練習モード</p>
+      </div>
+    </div>
+    <a class="btn btn--outline btn--sm" href="index.html">オンライン対戦に戻る</a>
+  </header>
+
+  <main>
+    <!-- 難易度選択画面 -->
+    <section id="select-screen" class="screen">
+      <p class="status-msg">CPUの強さを選んでください。先手はあなた、後手がCPUです。</p>
+
+      <div class="lobby-grid difficulty-grid">
+        <div class="lobby-card difficulty-card">
+          <span class="mono-label">腕試し</span>
+          <h2>かんたん</h2>
+          <p class="lobby-card-copy">ランダムに指すCPU。ルールに慣れたい人向け。</p>
+          <button class="btn btn--pear difficulty-btn" data-difficulty="easy">かんたんで練習</button>
+        </div>
+
+        <div class="lobby-card difficulty-card">
+          <span class="mono-label">ちょうどいい</span>
+          <h2>ふつう</h2>
+          <p class="lobby-card-copy">2手先まで読んで指します。</p>
+          <button class="btn btn--cyan difficulty-btn" data-difficulty="normal">ふつうで練習</button>
+        </div>
+
+        <div class="lobby-card difficulty-card">
+          <span class="mono-label">本気で</span>
+          <h2>つよい</h2>
+          <p class="lobby-card-copy">4手先まで読む本気モード。</p>
+          <button class="btn btn--outline difficulty-btn" data-difficulty="hard">つよいで練習</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 対局画面 -->
+    <section id="game-screen" class="screen hidden">
+      <div class="game-header">
+        <div class="room-chip">
+          相手 <span id="difficulty-display" class="mono-num"></span>
+        </div>
+        <button id="change-difficulty-btn" class="btn btn--outline btn--sm">難易度を変える</button>
+      </div>
+
+      <p id="turn-indicator" class="status-msg"></p>
+      <div id="result-msg" class="result-msg hidden"></div>
+      <div class="game-actions">
+        <button id="retry-btn" class="btn btn--pear hidden">もう一度</button>
+      </div>
+
+      <div class="game-area">
+        <div class="hand hand--gote" id="hand-gote">
+          <h3>CPU 持ち駒</h3>
+          <div class="hand-pieces" id="hand-gote-pieces"></div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <div class="hand hand--sente" id="hand-sente">
+          <h3>あなたの持ち駒</h3>
+          <div class="hand-pieces" id="hand-sente-pieces"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>キャッチ(相手のライオンを取る)またはトライ(自分のライオンが相手陣の奥まで進み、取られずに生き残る)で勝ち。同一局面3回で引き分け。</p>
+  </footer>
+
+  <script src="js/game-logic.js?v=5"></script>
+  <script src="js/cpu-ai.js?v=1"></script>
+  <script src="js/practice.js?v=1"></script>
+</body>
+</html>
