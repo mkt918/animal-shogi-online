@@ -95,4 +95,5 @@ python -m http.server 8000
 - `js/tournament-logic.js` — 総当たり/トーナメント組み合わせ生成・不戦勝処理・順位計算・結果反映(Firebase非依存)
 - `practice.html` / `js/practice.js` — CPU練習モードの画面と制御(Firebase不要のローカル対局)
 - `js/cpu-ai.js` — CPUの思考ルーチン(ミニマックス+アルファベータ枝刈り、Firebase非依存)
+- [`docs/strategy-guide.md`](docs/strategy-guide.md) — 定跡・戦略まとめ(難易度別)。将来の攻略サイト記事化とCPU強さ調整の元データ
 - `firestore.rules` — Firestoreセキュリティルール
