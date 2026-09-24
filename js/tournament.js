@@ -247,6 +247,7 @@ function render() {
 
   el('t-host-controls').classList.toggle('hidden', !(isHost && t.status === 'lobby'));
   el('t-wait-msg').classList.toggle('hidden', !(isMember && !isHost && t.status === 'lobby'));
+  el('delete-t-btn').classList.toggle('hidden', !isHost); // 後片付けは主催者だけ
 
   // 参加者
   const list = el('t-players');
@@ -279,6 +280,7 @@ function render() {
     renderStandings(t);
   }
   renderSchedule(t);
+  syncWatchMode(t);
 }
 
 function renderChampion(t) {
@@ -504,8 +506,178 @@ function renderMatch(m) {
   return row;
 }
 
+/**
+ * 主催者による大会の削除。ぶら下がっている対局(games)も一緒に片付ける。
+ * 取り消せない操作なので、大会コードを打ち込んでもらって確認する。
+ */
+async function deleteTournament() {
+  if (!tDoc || tDoc.hostUid !== uid) return;
+  const answer = window.prompt(
+    `この大会(コード ${tCode})を削除します。取り消せません。\n`
+    + '削除してよければ、大会コードを入力してください。',
+  );
+  if (answer === null) return; // キャンセル
+  if (answer.trim() !== tCode) {
+    showError('大会コードが一致しないため削除を中止しました。');
+    return;
+  }
+
+  const gameIds = (tDoc.matches || []).map((m) => m.gameId).filter(Boolean);
+  try {
+    // 先に対局を消す(大会が先に消えるとルール側で主催者判定ができなくなるため)
+    for (const gameId of gameIds) {
+      try {
+        await db.collection('games').doc(gameId).delete();
+      } catch (e) {
+        console.warn('対局の削除をスキップしました', gameId, e.message);
+      }
+    }
+    await db.collection('tournaments').doc(tCode).delete();
+
+    if (unsubscribeT) unsubscribeT();
+    unsubscribeT = null;
+    stopWatchMode();
+    tDoc = null;
+    tCode = null;
+    const url = new URL(location.href);
+    url.searchParams.delete('code');
+    history.replaceState({}, '', url);
+    el('t-screen').classList.add('hidden');
+    el('t-entry').classList.remove('hidden');
+    showError('大会を削除しました。');
+  } catch (e) {
+    showError('削除に失敗しました: ' + e.message);
+    console.error(e);
+  }
+}
+
+// --- 一覧観戦モード: 進行中の対局の盤面をまとめて表示する ---
+const watchUnsubscribers = new Map(); // gameId → onSnapshot の解除関数
+const watchStates = new Map(); // gameId → 対局ドキュメント
+
+function stopWatchMode() {
+  watchUnsubscribers.forEach((unsub) => unsub());
+  watchUnsubscribers.clear();
+  watchStates.clear();
+  el('t-watch-boards').innerHTML = '';
+}
+
+/** 対局表の状態に合わせて、購読する対局を増減させる */
+function syncWatchMode(t) {
+  const enabled = el('watch-mode-toggle').checked;
+  const started = t.status !== 'lobby';
+  el('t-watch-card').classList.toggle('hidden', !started);
+
+  // 「始まっているが、まだ決着していない」対局が観戦対象
+  const liveIds = enabled
+    ? (t.matches || []).filter((m) => m.gameId && !m.winner).map((m) => m.gameId)
+    : [];
+  el('t-watch-count').textContent = enabled ? `${liveIds.length}局` : '';
+  el('t-watch-empty').classList.toggle('hidden', !enabled || liveIds.length > 0);
+  el('t-watch-empty').textContent = enabled
+    ? 'いま進行中の対局はありません。'
+    : '';
+
+  if (!enabled) {
+    stopWatchMode();
+    return;
+  }
+
+  // 終わった/消えた対局の購読をやめる
+  watchUnsubscribers.forEach((unsub, gameId) => {
+    if (!liveIds.includes(gameId)) {
+      unsub();
+      watchUnsubscribers.delete(gameId);
+      watchStates.delete(gameId);
+    }
+  });
+
+  // 新しく始まった対局を購読する
+  liveIds.forEach((gameId) => {
+    if (watchUnsubscribers.has(gameId)) return;
+    const unsub = db.collection('games').doc(gameId).onSnapshot((snap) => {
+      if (!snap.exists) {
+        watchStates.delete(gameId);
+      } else {
+        watchStates.set(gameId, snap.data());
+      }
+      renderWatchBoards();
+    }, (err) => console.error('観戦の購読に失敗', gameId, err));
+    watchUnsubscribers.set(gameId, unsub);
+  });
+
+  renderWatchBoards();
+}
+
+function renderWatchBoards() {
+  const container = el('t-watch-boards');
+  container.innerHTML = '';
+  [...watchStates.entries()].forEach(([gameId, doc]) => {
+    container.appendChild(renderWatchBoard(gameId, doc));
+  });
+}
+
+/** 1局ぶんの小さな盤面(操作はできない。詳しく見たい人向けにリンクを付ける) */
+function renderWatchBoard(gameId, doc) {
+  const card = document.createElement('div');
+  card.className = 'watch-board';
+
+  const head = document.createElement('div');
+  head.className = 'watch-board-head';
+  const names = (doc.names || {});
+  const turnLabel = doc.state && doc.state.turn === 'sente' ? 'sente' : 'gote';
+  ['sente', 'gote'].forEach((owner, i) => {
+    if (i === 1) {
+      const vs = document.createElement('span');
+      vs.className = 'matchup-vs';
+      vs.textContent = 'vs';
+      head.appendChild(vs);
+    }
+    const chip = document.createElement('span');
+    chip.className = `matchup-player matchup-player--${owner}`;
+    if (doc.status === 'playing' && turnLabel === owner) chip.classList.add('matchup-player--turn');
+    chip.textContent = (names[owner] || '').trim() || (owner === 'sente' ? '先手' : '後手');
+    head.appendChild(chip);
+  });
+  card.appendChild(head);
+
+  const board = document.createElement('div');
+  board.className = 'board watch-board-grid';
+  const flat = (doc.state && doc.state.board) || [];
+  for (let r = 0; r < GameLogic.BOARD_ROWS; r++) {
+    for (let c = 0; c < GameLogic.BOARD_COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const piece = flat[r * GameLogic.BOARD_COLS + c];
+      if (piece) {
+        const pieceEl = document.createElement('div');
+        pieceEl.className = `piece owner-${piece.owner}${piece.owner === 'gote' ? ' piece-rotated' : ''}`;
+        pieceEl.textContent = WATCH_PIECE_EMOJI[piece.type] || '';
+        cell.appendChild(pieceEl);
+      }
+      board.appendChild(cell);
+    }
+  }
+  card.appendChild(board);
+
+  const foot = document.createElement('div');
+  foot.className = 'watch-board-foot';
+  const link = document.createElement('a');
+  link.className = 'btn btn--outline btn--sm';
+  link.href = `index.html?room=${gameId}`;
+  link.textContent = 'この対局を開く';
+  foot.appendChild(link);
+  card.appendChild(foot);
+
+  return card;
+}
+
+const WATCH_PIECE_EMOJI = { lion: '🦁', elephant: '🐘', giraffe: '🦒', chick: '🐤', hen: '🐔' };
+
 function setupEvents() {
   el('create-t-btn').addEventListener('click', createTournament);
+  el('delete-t-btn').addEventListener('click', deleteTournament);
+  el('watch-mode-toggle').addEventListener('change', () => { if (tDoc) syncWatchMode(tDoc); });
   el('join-t-btn').addEventListener('click', () => joinTournament(el('t-code-input').value.trim(), el('join-name').value.trim()));
   el('t-code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') el('join-t-btn').click(); });
   el('start-t-btn').addEventListener('click', startTournament);

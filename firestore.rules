@@ -34,7 +34,11 @@ service cloud.firestore {
       allow update: if signedIn()
         && unchanged('tournamentId') && unchanged('matchId') && unchanged('expectedGote')
         && (isPlayer() || takesGoteSeat());
-      allow delete: if false;
+      // 後片付け用。対局の当事者、または大会の対局ならその主催者が削除できる
+      allow delete: if signedIn()
+        && (isPlayer()
+            || (('tournamentId' in resource.data)
+                && get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.hostUid == request.auth.uid));
     }
 
     // 大会(リーグ戦/トーナメント)
@@ -67,7 +71,8 @@ service cloud.firestore {
         && unchanged('hostUid')
         && unchanged('format')
         && (isHost() || isMember() || joinsLobby());
-      allow delete: if false;
+      // 主催者は自分が作った大会を削除できる
+      allow delete: if signedIn() && isHost();
     }
   }
 }

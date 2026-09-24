@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/tokens.css" />
-<link rel="stylesheet" href="css/style.css?v=7" />
+<link rel="stylesheet" href="css/style.css?v=8" />
 </head>
 <body>
   <header class="masthead">
@@ -74,13 +74,16 @@
 
       <div class="t-layout">
         <div class="t-card">
-          <h3>参加者 <span id="t-player-count" class="mono-num"></span></h3>
-          <ul id="t-players" class="t-player-list"></ul>
+          <details id="t-players-details" class="t-players-details">
+            <summary>参加者 <span id="t-player-count" class="mono-num"></span></summary>
+            <ul id="t-players" class="t-player-list"></ul>
+          </details>
           <div id="t-host-controls" class="hidden">
             <p class="lobby-card-copy">全員が集まったら組み合わせを作ります。開始後は参加者を追加できません。</p>
             <button id="start-t-btn" class="btn btn--pear">組み合わせを作って開始</button>
           </div>
           <p id="t-wait-msg" class="lobby-card-copy hidden">主催者が開始するまでお待ちください。</p>
+          <button id="delete-t-btn" class="btn btn--outline btn--sm btn--coral hidden">この大会を削除する</button>
         </div>
 
         <div class="t-card" id="t-standings-card">
@@ -95,6 +98,19 @@
         <h3 id="t-schedule-title">対局表</h3>
         <div id="t-rounds"></div>
       </div>
+
+      <!-- 進行中の対局をまとめて眺める一覧観戦モード -->
+      <div class="t-card" id="t-watch-card">
+        <div class="t-watch-head">
+          <h3>一覧観戦 <span id="t-watch-count" class="mono-num"></span></h3>
+          <label class="learning-toggle t-watch-toggle">
+            <input type="checkbox" id="watch-mode-toggle" />
+            <span>進行中の対局をこの画面でまとめて見る</span>
+          </label>
+        </div>
+        <p id="t-watch-empty" class="lobby-card-copy">いま進行中の対局はありません。</p>
+        <div id="t-watch-boards" class="watch-boards"></div>
+      </div>
     </section>
   </main>
 
@@ -108,6 +124,6 @@
   <script src="js/firebase-config.js?v=5"></script>
   <script src="js/game-logic.js?v=6"></script>
   <script src="js/tournament-logic.js?v=3"></script>
-  <script src="js/tournament.js?v=5"></script>
+  <script src="js/tournament.js?v=6"></script>
 </body>
 </html>
