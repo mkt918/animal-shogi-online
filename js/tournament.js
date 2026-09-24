@@ -179,6 +179,9 @@ async function startTournament() {
 async function startMatch(match) {
   if (!match.p1 || !match.p2) return; // トーナメントで対戦相手がまだ決まっていない
   const opponent = match.p1 === uid ? match.p2 : match.p1;
+  // 大会の対局は参加者名が分かっているので、対局画面/観戦者向けに名前も持たせる
+  const myName = nameOf(uid);
+  const opponentName = nameOf(opponent);
   const tRef = db.collection('tournaments').doc(tCode);
   try {
     let gameCode = null;
@@ -199,6 +202,7 @@ async function startMatch(match) {
         tx.set(gRef, {
           state: serializeState(GameLogic.createInitialState()),
           players: { sente: uid, gote: null },
+          names: { sente: myName, gote: opponentName },
           status: 'waiting',
           tournamentId: tCode,
           matchId: match.id,
@@ -333,6 +337,11 @@ function renderSchedule(t) {
   const rounds = [...new Set(t.matches.map((m) => m.round))].sort((a, b) => a - b);
   const totalRounds = Math.max(...rounds);
 
+  if (isKnockout) {
+    container.appendChild(renderBracket(t, rounds, totalRounds));
+    return;
+  }
+
   rounds.forEach((r) => {
     const sec = document.createElement('div');
     sec.className = 'round';
@@ -355,6 +364,112 @@ function renderSchedule(t) {
     }
     container.appendChild(sec);
   });
+}
+
+/**
+ * トーナメント表(ブラケット図)を描く。
+ * ラウンドごとに縦一列に並べ、1回戦の2試合が2回戦の1試合へつながる形を
+ * CSS の枠線で表現する。勝ち上がった側の名前には印を付ける。
+ */
+function renderBracket(t, rounds, totalRounds) {
+  const bracket = document.createElement('div');
+  bracket.className = 'bracket';
+
+  rounds.forEach((r) => {
+    const col = document.createElement('div');
+    col.className = 'bracket-round';
+
+    const head = document.createElement('h4');
+    head.textContent = TournamentLogic.knockoutRoundLabel(r, totalRounds);
+    col.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'bracket-matches';
+    t.matches.filter((m) => m.round === r).forEach((m) => body.appendChild(renderBracketMatch(m)));
+    col.appendChild(body);
+    bracket.appendChild(col);
+  });
+
+  // 優勝者の枠(決勝の勝者)
+  const finalMatch = t.matches.find((m) => !m.nextMatchId);
+  const champCol = document.createElement('div');
+  champCol.className = 'bracket-round bracket-round--champion';
+  const champHead = document.createElement('h4');
+  champHead.textContent = '優勝';
+  champCol.appendChild(champHead);
+  const champBox = document.createElement('div');
+  champBox.className = 'bracket-champion';
+  if (finalMatch && finalMatch.winner && finalMatch.winner !== 'draw') {
+    champBox.classList.add('bracket-champion--decided');
+    champBox.textContent = `🏆 ${nameOf(finalMatch.winner)}`;
+  } else {
+    champBox.textContent = '未定';
+  }
+  champCol.appendChild(champBox);
+  bracket.appendChild(champCol);
+
+  return bracket;
+}
+
+/** ブラケット図の1試合分(対戦者2人を縦に並べた枠) */
+function renderBracketMatch(m) {
+  const box = document.createElement('div');
+  box.className = 'bracket-match';
+  const mine = m.p1 === uid || m.p2 === uid;
+  if (mine) box.classList.add('bracket-match--mine');
+
+  ['p1', 'p2'].forEach((slot) => {
+    const pid = m[slot];
+    const row = document.createElement('div');
+    row.className = 'bracket-slot';
+    if (m.winner && m.winner !== 'draw' && pid && m.winner === pid) row.classList.add('bracket-slot--winner');
+    if (pid && pid === uid) row.classList.add('bracket-slot--me');
+    if (!pid) row.classList.add('bracket-slot--empty');
+
+    const name = document.createElement('span');
+    name.className = 'bracket-slot-name';
+    name.textContent = opponentLabel(m, pid);
+    row.appendChild(name);
+    box.appendChild(row);
+  });
+
+  const action = document.createElement('div');
+  action.className = 'bracket-action';
+  action.appendChild(matchActionElement(m, mine));
+  box.appendChild(action);
+  return box;
+}
+
+/** 対局表・ブラケット図で共通して使う「状態と操作」の要素 */
+function matchActionElement(m, mine) {
+  const bothDecided = m.p1 !== null && m.p2 !== null;
+  if (m.winner) {
+    const isBye = tDoc.format === 'knockout' && m.round === 1 && (!m.p1 || !m.p2);
+    return makeTag(
+      m.winner === 'draw' ? '引き分け' : isBye ? '不戦勝で進出' : `${nameOf(m.winner)}の勝ち`,
+      'tag--done',
+    );
+  }
+  if (!bothDecided) return makeTag('未定');
+  if (m.gameId) {
+    const wrap = document.createElement('span');
+    wrap.className = 'match-action';
+    const a = document.createElement('a');
+    a.className = 'btn btn--sm ' + (mine ? 'btn--cyan' : 'btn--outline');
+    a.href = `index.html?room=${m.gameId}`;
+    a.textContent = mine ? '対局に参加' : '観戦';
+    wrap.appendChild(a);
+    wrap.appendChild(makeTag('対局中'));
+    return wrap;
+  }
+  if (mine && tDoc.status === 'running') {
+    const b = document.createElement('button');
+    b.className = 'btn btn--sm btn--pear';
+    b.textContent = '対局を始める';
+    b.addEventListener('click', () => startMatch(m));
+    return b;
+  }
+  return makeTag('未対局');
 }
 
 /** 対局中の名前欄に出す表示。トーナメントで枠が null のときは「不戦勝」か「未定」かを区別する。 */
@@ -384,30 +499,7 @@ function renderMatch(m) {
 
   const action = document.createElement('div');
   action.className = 'match-action';
-  if (m.winner) {
-    const isBye = tDoc.format === 'knockout' && m.round === 1 && (!m.p1 || !m.p2);
-    action.appendChild(makeTag(
-      m.winner === 'draw' ? '引き分け' : isBye ? '不戦勝で進出' : `${nameOf(m.winner)}の勝ち`,
-      'tag--done',
-    ));
-  } else if (!bothDecided) {
-    action.appendChild(makeTag('未定'));
-  } else if (m.gameId) {
-    const a = document.createElement('a');
-    a.className = 'btn btn--sm ' + (mine ? 'btn--cyan' : 'btn--outline');
-    a.href = `index.html?room=${m.gameId}`;
-    a.textContent = mine ? '対局に参加' : '観戦';
-    action.appendChild(a);
-    action.appendChild(makeTag('対局中'));
-  } else if (mine && tDoc.status === 'running') {
-    const b = document.createElement('button');
-    b.className = 'btn btn--sm btn--pear';
-    b.textContent = '対局を始める';
-    b.addEventListener('click', () => startMatch(m));
-    action.appendChild(b);
-  } else {
-    action.appendChild(makeTag('未対局'));
-  }
+  action.appendChild(matchActionElement(m, mine));
   row.appendChild(action);
   return row;
 }

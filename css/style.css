@@ -117,8 +117,10 @@ main {
   width: 100%;
 }
 
+/* ユーティリティクラスなので、.btn など後から定義される display を必ず上書きする
+   (!important がないと .btn { display: inline-flex } に負けて非表示にならない) */
 .screen.hidden, .hidden {
-  display: none;
+  display: none !important;
 }
 
 .status-msg {
@@ -984,4 +986,192 @@ footer {
     animation: none;
     box-shadow: inset 0 0 0 3px var(--color-accent-2);
   }
+}
+
+/* ---------- 対戦カード(誰が先手/後手か) ---------- */
+
+.lobby-name-field {
+  width: 100%;
+  max-width: 720px;
+  margin: var(--space-sm) auto 0;
+}
+
+/* 名前欄は部屋コード欄(等幅・字間広め)と違い、普通の文章として入力できるようにする */
+.lobby-name-field input {
+  font-family: var(--font-body);
+  letter-spacing: normal;
+  text-align: left;
+  font-size: var(--text-md);
+}
+
+.matchup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  margin: var(--space-2xs) 0 var(--space-xs);
+}
+
+.matchup:empty {
+  display: none;
+}
+
+.matchup-player {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  padding: var(--space-3xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border: 2px solid transparent;
+}
+
+.matchup-player--sente {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.matchup-player--gote {
+  background: var(--color-accent-2);
+  color: var(--color-accent-2-ink);
+}
+
+/* いま手番の側を縁取りで示す */
+.matchup-player--turn {
+  border-color: var(--color-ink);
+}
+
+.matchup-role {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  opacity: 0.8;
+}
+
+.matchup-name {
+  font-family: var(--font-display);
+}
+
+.matchup-you {
+  font-size: var(--text-xs);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--color-ink) 78%, transparent);
+  color: var(--color-paper);
+}
+
+.matchup-vs {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: color-mix(in oklch, var(--color-ink) 50%, transparent);
+}
+
+/* ---------- トーナメント表(ブラケット図) ---------- */
+
+.bracket {
+  display: flex;
+  gap: var(--space-md);
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: var(--space-2xs);
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  flex: 1 0 auto;
+}
+
+.bracket-round h4 {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  color: color-mix(in oklch, var(--color-ink) 55%, transparent);
+  margin: 0 0 var(--space-2xs);
+  text-align: center;
+}
+
+/* 各ラウンドの試合を均等に散らすことで、次のラウンドの枠と中心が揃って見える */
+.bracket-matches {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  flex: 1;
+  gap: var(--space-2xs);
+}
+
+.bracket-match {
+  background: var(--color-paper);
+  border-radius: var(--radius-input);
+  padding: var(--space-2xs);
+  box-shadow: 0 4px 12px -8px oklch(20% 0.012 250 / 0.3);
+}
+
+.bracket-match--mine {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.bracket-slot {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3xs) var(--space-2xs);
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  background: var(--color-paper-2);
+}
+
+.bracket-slot + .bracket-slot {
+  margin-top: 3px;
+}
+
+.bracket-slot--winner {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 700;
+}
+
+.bracket-slot--me .bracket-slot-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.bracket-slot--empty {
+  color: color-mix(in oklch, var(--color-ink) 45%, transparent);
+}
+
+.bracket-slot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-action {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-3xs);
+}
+
+.bracket-round--champion {
+  justify-content: center;
+  min-width: 150px;
+}
+
+.bracket-champion {
+  text-align: center;
+  padding: var(--space-sm);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: color-mix(in oklch, var(--color-ink) 55%, transparent);
+}
+
+.bracket-champion--decided {
+  background: var(--color-accent-3);
+  color: var(--color-accent-3-ink);
 }

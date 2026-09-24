@@ -25,6 +25,29 @@ function expiresAfterDays(days) {
   return firebase.firestore.Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
+// プレイヤー名(任意)。大会モードと同じキーを使い、一度入れたら次回も引き継ぐ。
+// 観戦者が「どちらが誰か」を判別できるようにするための情報。
+const NAME_KEY = 'animal-shogi-player-name';
+function savedName() {
+  try { return (localStorage.getItem(NAME_KEY) || '').trim(); } catch (_) { return ''; }
+}
+function rememberName(name) {
+  try { localStorage.setItem(NAME_KEY, name); } catch (_) { /* ignore */ }
+}
+/** 入力欄の名前を取り出して保存する(空欄なら空文字) */
+function currentInputName() {
+  const input = el('player-name-input');
+  const name = input ? input.value.trim().slice(0, 12) : '';
+  if (name) rememberName(name);
+  return name;
+}
+/** 手番側の表示名。名前が未設定なら「先手」「後手」で代用する */
+function displayName(owner) {
+  const names = (currentGameDoc && currentGameDoc.names) || {};
+  const fallback = owner === 'sente' ? '先手' : '後手';
+  return (names[owner] || '').trim() || fallback;
+}
+
 // Firestoreはネストした配列(2次元配列)を保存できないため、board を保存用にフラット化する。
 function serializeState(state) {
   const flatBoard = [];
@@ -70,6 +93,8 @@ function initFirebase() {
       el('connection-status').textContent = '接続完了。部屋を作るか、部屋コードを入力してください。';
       el('create-room-btn').disabled = false;
       el('join-room-btn').disabled = false;
+      const nameInput = el('player-name-input');
+      if (nameInput && !nameInput.value) nameInput.value = savedName();
       checkUrlForRoom();
     }
   });
@@ -91,6 +116,7 @@ function generateRoomCode() {
 async function createRoom() {
   el('lobby-error').textContent = '';
   const state = GameLogic.createInitialState();
+  const myName = currentInputName();
   try {
     // 4桁コードは衝突しうるので、存在しないコードを引くまで再試行する(既存の部屋を上書きしない)
     let code = null;
@@ -103,6 +129,7 @@ async function createRoom() {
         tx.set(ref, {
           state: serializeState(state),
           players: { sente: uid, gote: null },
+          names: { sente: myName, gote: '' },
           status: 'waiting',
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           expiresAt: expiresAfterDays(GAME_TTL_DAYS),
@@ -124,6 +151,7 @@ async function joinRoom(code) {
     el('lobby-error').textContent = '部屋コードを入力してください。';
     return;
   }
+  const myName = currentInputName();
   const ref = db.collection('games').doc(code);
   try {
     await db.runTransaction(async (tx) => {
@@ -139,7 +167,7 @@ async function joinRoom(code) {
       if (data.expectedGote && data.expectedGote !== uid) {
         return; // 大会の対局は相手が決まっているので、それ以外の人は観戦
       }
-      tx.update(ref, { 'players.gote': uid, status: 'playing' });
+      tx.update(ref, { 'players.gote': uid, 'names.gote': myName, status: 'playing' });
     });
     enterRoom(code);
   } catch (e) {
@@ -234,6 +262,56 @@ async function maybeReportTournamentResult() {
   }
 }
 
+/**
+ * 対局しているのが誰なのかを、先手/後手の色チップで明示する。
+ * 観戦者は「どちらが誰か」を判別する手掛かりがこれしかないので必ず表示する。
+ */
+function renderMatchup() {
+  const box = el('matchup');
+  if (!box || !currentGameDoc) return;
+  box.innerHTML = '';
+
+  const { players, status } = currentGameDoc;
+  ['sente', 'gote'].forEach((owner, i) => {
+    if (i === 1) {
+      const vs = document.createElement('span');
+      vs.className = 'matchup-vs';
+      vs.textContent = 'vs';
+      box.appendChild(vs);
+    }
+    const chip = document.createElement('span');
+    chip.className = `matchup-player matchup-player--${owner}`;
+    const waiting = owner === 'gote' && !players.gote;
+
+    const role = document.createElement('span');
+    role.className = 'matchup-role';
+    role.textContent = owner === 'sente' ? '先手' : '後手';
+    chip.appendChild(role);
+
+    const name = document.createElement('span');
+    name.className = 'matchup-name';
+    name.textContent = waiting ? '(参加待ち)' : displayName(owner);
+    chip.appendChild(name);
+
+    if (myRole === owner) {
+      const you = document.createElement('span');
+      you.className = 'matchup-you';
+      you.textContent = 'あなた';
+      chip.appendChild(you);
+    }
+    if (status === 'playing' && !currentGameDoc.state.winner && currentGameDoc.state.turn === owner) {
+      chip.classList.add('matchup-player--turn');
+    }
+    box.appendChild(chip);
+  });
+
+  // 持ち駒トレイの見出しも「誰の持ち駒か」がわかる表記にする
+  const senteLabel = myRole === 'sente' ? 'あなた' : displayName('sente');
+  const goteLabel = myRole === 'gote' ? 'あなた' : displayName('gote');
+  el('hand-sente-title').textContent = `${senteLabel}(先手)の持ち駒`;
+  el('hand-gote-title').textContent = `${goteLabel}(後手)の持ち駒`;
+}
+
 async function pushState(newState) {
   try {
     await db.collection('games').doc(roomCode).update({ state: serializeState(newState) });
@@ -260,6 +338,7 @@ function render() {
     roleEl.classList.add('role-spectator');
   }
   el('waiting-msg').classList.toggle('hidden', status !== 'waiting');
+  renderMatchup();
 
   const isPlayer = myRole === 'sente' || myRole === 'gote';
   const gameOver = !!state.winner;

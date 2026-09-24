@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/tokens.css" />
-<link rel="stylesheet" href="css/style.css?v=5" />
+<link rel="stylesheet" href="css/style.css?v=7" />
 </head>
 <body>
   <header class="masthead">
@@ -29,6 +29,11 @@
     <!-- ロビー画面 -->
     <section id="lobby-screen" class="screen">
       <p id="connection-status" class="status-msg">Firebaseに接続中…</p>
+
+      <label class="field lobby-name-field">
+        <span>あなたの名前(任意・相手や観戦者に表示されます)</span>
+        <input id="player-name-input" maxlength="12" placeholder="例: たろう" autocomplete="nickname" />
+      </label>
 
       <div class="lobby-grid">
         <div class="lobby-card lobby-card--primary">
@@ -88,6 +93,8 @@
         <button id="leave-room-btn" class="btn btn--outline btn--sm">部屋を出る</button>
       </div>
 
+      <div id="matchup" class="matchup"></div>
+
       <p id="waiting-msg" class="status-msg hidden">対戦相手を待っています。部屋コードまたはリンクを相手に共有してください。</p>
 
       <p id="turn-indicator" class="status-msg"></p>
@@ -100,14 +107,14 @@
 
       <div class="game-area" id="game-area">
         <div class="hand hand--gote" id="hand-gote">
-          <h3>後手 持ち駒</h3>
+          <h3 id="hand-gote-title">後手 持ち駒</h3>
           <div class="hand-pieces" id="hand-gote-pieces"></div>
         </div>
 
         <div id="board" class="board"></div>
 
         <div class="hand hand--sente" id="hand-sente">
-          <h3>先手 持ち駒</h3>
+          <h3 id="hand-sente-title">先手 持ち駒</h3>
           <div class="hand-pieces" id="hand-sente-pieces"></div>
         </div>
       </div>
@@ -124,6 +131,6 @@
   <script src="js/firebase-config.js?v=5"></script>
   <script src="js/game-logic.js?v=6"></script>
   <script src="js/tournament-logic.js?v=3"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>
